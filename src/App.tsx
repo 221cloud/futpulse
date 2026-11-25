@@ -244,7 +244,7 @@ function NewsSection({ language, onOpen, expanded = false, articles, loading, er
     {!loading && error && <div className="empty-state" role="alert">{error}</div>}
     {!loading && !error && articles.length === 0 && <div className="empty-state">{language === "FR" ? "Aucune actualité publiée pour le moment." : "No published stories yet."}</div>}
     {!loading && !error && articles.length > 0 && <div className="news-grid">{articles.slice(0, expanded ? 20 : 2).map((story, index) => <article className="news-card" key={story.id}>
-      <div className="news-art">{story.image ? <img src={story.image} alt="" loading="lazy" /> : <><span className="news-number">{String(index + 1).padStart(2, "0")}</span><span className="news-symbol">✦</span></>}<span className="news-category">{story.category}</span></div>
+      <div className="news-art">{story.image ? <img src={story.image} alt="" loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <><span className="news-number">{String(index + 1).padStart(2, "0")}</span><span className="news-symbol">✦</span></>}<span className="news-category">{story.category}</span></div>
       <div className="news-copy"><span>{story.category}{story.date ? " · " + story.date : ""}</span><h3>{story.title}</h3>{story.content && <p>{story.content.length > 180 ? story.content.slice(0, 180) + "…" : story.content}</p>}<button onClick={onOpen}>{labels.read} ↗</button></div>
     </article>)}</div>}
   </section>;
