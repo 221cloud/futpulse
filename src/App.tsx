@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "favorites" | "profile";
+
+type NewsArticle = { id: string; title: string; content: string; category: string; date: string; image?: string; };
 
 type Match = {
   id: number;
@@ -22,13 +24,23 @@ const matches: Match[] = [
   { id: 4, competition: "Ligue 1 Sénégal", home: "Stade de Mbour", away: "Génération Foot", time: "Demain · 17:30", status: "upcoming" }
 ];
 
+const NEWS_API = "https://221cloud-platform.elhadjidame-sall.workers.dev/api/public/applications/futpulse-7ffb77c9/tables/ddf4f9ce-ffc1-4361-be6b-00b7a129aeb8/rows?limit=20";
+
+function readField(row: Record<string, unknown>, aliases: string[]): string {
+  const normalize = (value: string) => value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+  const wanted = aliases.map(normalize);
+  const key = Object.keys(row).find((name) => wanted.includes(normalize(name)));
+  const value = key ? row[key] : undefined;
+  return typeof value === "string" || typeof value === "number" ? String(value).trim() : "";
+}
+
 const copy = {
   FR: {
     home: "Accueil", matches: "Matchs", news: "Actualités", favorites: "Favoris", profile: "Profil",
     greeting: "Le football, en temps réel.", subtitle: "Toute l’actualité du jeu. Au même endroit.",
     live: "EN DIRECT", today: "À la une", seeAll: "Tout voir", upcoming: "À venir",
     latest: "Dernières actualités", competitions: "Compétitions suivies", demo: "Version de démonstration",
-    demoText: "Les scores et contenus affichés sont fictifs. Aucune source de données en direct n’est encore connectée.",
+    demoText: "Les scores restent en démonstration. Les actualités publiées sont chargées depuis la base FutPulse.",
     search: "Rechercher un club, un joueur, une compétition…", favoriteHint: "Ajoutez vos équipes et compétitions préférées pour les retrouver ici.",
     profileText: "Votre espace personnel arrivera dans une prochaine version.", empty: "Aucun favori pour le moment.",
     explore: "Explorer les matchs", read: "Lire l’article", allMatches: "Tous les matchs",
@@ -39,7 +51,7 @@ const copy = {
     greeting: "Football, in real time.", subtitle: "Everything happening in the game. All in one place.",
     live: "LIVE", today: "Featured", seeAll: "See all", upcoming: "Upcoming",
     latest: "Latest news", competitions: "Followed competitions", demo: "Demo version",
-    demoText: "Scores and content shown are fictional. No live data provider is connected yet.",
+    demoText: "Match scores are still demo data. Published news is loaded from the FutPulse database.",
     search: "Search for a club, player, competition…", favoriteHint: "Add your favorite teams and competitions to find them here.",
     profileText: "Your personal space is coming in a future release.", empty: "No favorites yet.",
     explore: "Explore matches", read: "Read article", allMatches: "All matches",
@@ -60,7 +72,38 @@ function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["PSG", "Sénégal"]);
+  const [articles, setArticles] = useState<NewsArticle[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
+  const [newsError, setNewsError] = useState("");
   const t = copy[language];
+
+  useEffect(() => {
+    let active = true;
+    fetch(NEWS_API, { headers: { Accept: "application/json" } })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Impossible de charger les actualités.");
+        return response.json();
+      })
+      .then((payload: { rows?: Record<string, unknown>[] }) => {
+        if (!active) return;
+        const rows = Array.isArray(payload.rows) ? payload.rows : [];
+        const loaded = rows.map((row, index) => ({
+          id: String(row.row_id ?? index),
+          title: readField(row, ["titre", "title", "headline"]) || "Actualité FutPulse",
+          content: readField(row, ["contenu", "content", "body", "description", "texte"]),
+          category: readField(row, ["categorie", "category", "rubrique"]) || "FOOTBALL",
+          date: readField(row, ["date_publication", "published_at", "date", "created_at"]),
+          image: readField(row, ["image_url", "image", "visuel", "thumbnail"]) || undefined
+        }));
+        setArticles(loaded);
+        setNewsError("");
+      })
+      .catch((error: unknown) => {
+        if (active) setNewsError(error instanceof Error ? error.message : "Erreur de chargement des actualités.");
+      })
+      .finally(() => { if (active) setNewsLoading(false); });
+    return () => { active = false; };
+  }, []);
 
   const filteredMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -141,7 +184,7 @@ function App() {
                 </div>
               </section>
 
-              <NewsSection language={language} onOpen={() => setTab("news")} />
+              <NewsSection language={language} onOpen={() => setTab("news")} articles={articles} loading={newsLoading} error={newsError} />
             </>
           )}
 
@@ -153,7 +196,7 @@ function App() {
             </section>
           )}
 
-          {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} onOpen={() => undefined} expanded /></section>}
+          {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} onOpen={() => undefined} articles={articles} loading={newsLoading} error={newsError} expanded /></section>}
 
           {tab === "favorites" && (
             <section className="page-section"><div className="page-heading"><div className="eyebrow">YOUR GAME</div><h1>{t.favorites}</h1><p>{t.favoriteHint}</p></div>
@@ -193,17 +236,17 @@ function MatchRow({ match }: { match: Match }) {
   return <div className="match-row"><span className="row-competition">{match.competition}</span><strong>{match.home}</strong><span className="row-vs">—</span><strong>{match.away}</strong><span className="row-time">{match.time}</span></div>;
 }
 
-function NewsSection({ language, onOpen, expanded = false }: { language: Language; onOpen: () => void; expanded?: boolean }) {
-  const stories = language === "FR" ? [
-    { category: "ANALYSE", title: "Les nouvelles générations redessinent le visage du football", time: "5 min de lecture", mark: "01" },
-    { category: "AFRIQUE", title: "Le football africain affirme ses ambitions sur la scène mondiale", time: "4 min de lecture", mark: "02" },
-    { category: "TACTIQUE", title: "Pressing, transitions : les tendances qui façonnent le jeu", time: "6 min de lecture", mark: "03" }
-  ] : [
-    { category: "ANALYSIS", title: "A new generation is reshaping the face of football", time: "5 min read", mark: "01" },
-    { category: "AFRICA", title: "African football makes its ambitions known on the world stage", time: "4 min read", mark: "02" },
-    { category: "TACTICS", title: "Pressing and transitions: trends shaping the modern game", time: "6 min read", mark: "03" }
-  ];
-  return <section className="section-block news-block"><div className="section-heading"><div><div className="eyebrow">BEYOND THE SCORE</div><h2>{copy[language].latest}</h2></div>{!expanded && <button className="text-button" onClick={onOpen}>{copy[language].seeAll} <span>↗</span></button>}</div><div className="news-grid">{stories.slice(0, expanded ? 3 : 2).map((story) => <article className="news-card" key={story.mark}><div className="news-art"><span className="news-number">{story.mark}</span><span className="news-symbol">✦</span><span className="news-category">{story.category}</span></div><div className="news-copy"><span>{story.category} · {story.time}</span><h3>{story.title}</h3><button onClick={onOpen}>{copy[language].read} ↗</button></div></article>)}</div></section>;
+function NewsSection({ language, onOpen, expanded = false, articles, loading, error }: { language: Language; onOpen: () => void; expanded?: boolean; articles: NewsArticle[]; loading: boolean; error: string }) {
+  const labels = copy[language];
+  return <section className="section-block news-block">
+    <div className="section-heading"><div><div className="eyebrow">BEYOND THE SCORE</div><h2>{labels.latest}</h2></div>{!expanded && <button className="text-button" onClick={onOpen}>{labels.seeAll} <span>↗</span></button>}</div>
+    {loading && <div className="empty-state">{language === "FR" ? "Chargement des actualités…" : "Loading news…"}</div>}
+    {!loading && error && <div className="empty-state" role="alert">{error}</div>}
+    {!loading && !error && articles.length === 0 && <div className="empty-state">{language === "FR" ? "Aucune actualité publiée pour le moment." : "No published stories yet."}</div>}
+    {!loading && !error && articles.length > 0 && <div className="news-grid">{articles.slice(0, expanded ? 20 : 2).map((story, index) => <article className="news-card" key={story.id}>
+      <div className="news-art">{story.image ? <img src={story.image} alt="" loading="lazy" /> : <><span className="news-number">{String(index + 1).padStart(2, "0")}</span><span className="news-symbol">✦</span></>}<span className="news-category">{story.category}</span></div>
+      <div className="news-copy"><span>{story.category}{story.date ? " · " + story.date : ""}</span><h3>{story.title}</h3>{story.content && <p>{story.content.length > 180 ? story.content.slice(0, 180) + "…" : story.content}</p>}<button onClick={onOpen}>{labels.read} ↗</button></div>
+    </article>)}</div>}
+  </section>;
 }
-
 export default App;
