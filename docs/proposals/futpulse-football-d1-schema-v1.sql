@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS fp_team_memberships (
   started_on TEXT,
   ended_on TEXT,
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   -- Membership periods are historical records; duplicate prevention is handled by sync logic.
 );
 
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS fp_coach_assignments (
   started_on TEXT,
   ended_on TEXT,
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   -- Assignment periods are historical records; duplicate prevention is handled by sync logic.
 );
 
