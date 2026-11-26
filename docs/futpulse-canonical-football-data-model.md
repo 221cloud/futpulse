@@ -162,30 +162,36 @@ Chaque réponse doit exposer au minimum `data`, `meta.fetchedAt`, `meta.source`,
 Ce modèle ne crée pas de tables, ne modifie pas D1, les Workers, les secrets, les applications ou les données de production. Il ne suppose pas que tous les champs sont couverts par API-Football. Les migrations ne doivent être créées qu'après examen de l'architecture réelle et validation explicite.
 
 
-## 11. Audit du dépôt FutPulse avant migration — 26 novembre 2026
+## 11. Audit de l'architecture 221Cloud avant migration — 26 novembre 2026
 
-L'inspection du dépôt `221cloud/futpulse`, branche `main`, a identifié :
+L'inspection du dépôt `221cloud/futpulse` seul ne suffisait pas à identifier le backend. Le compte GitHub connecté donne aussi accès au dépôt `221cloud/221cloud-platform.`, qui contient le Worker principal de la plateforme.
 
-- Application cliente React 18 + TypeScript + Vite.
-- Entrées visibles : `src/App.tsx`, `src/main.tsx`, `src/styles.css`.
-- Dépendances déclarées : React, React DOM, Vite, TypeScript et outils de typage.
-- Scripts déclarés : `dev`, `build`, `preview`.
-- Documentation existante : `docs/futpulse-football-data-spec.md`.
+### Éléments confirmés dans 221Cloud
 
-Dans les fichiers et la racine inspectés, aucun élément ne permet de confirmer la présence d'un backend, d'un Cloudflare Worker, d'une configuration Wrangler, d'un binding D1, d'un ORM, d'un système de migrations ou d'un schéma SQL existant. Les recherches ciblées dans le dépôt pour `D1`, `wrangler`, `Cloudflare Workers`, `drizzle` et `migrations` n'ont retourné aucun fichier correspondant.
+Le fichier `wrangler.jsonc` du dépôt `221cloud/221cloud-platform.` déclare :
 
-Le README décrit explicitement la version actuelle comme une maquette fonctionnelle côté navigateur, avec des données de démonstration et sans fournisseur football connecté.
+- Worker `221cloud-platform`, entrée `src/index.js`.
+- Binding D1 `DB`, base `221cloud-main`.
+- Binding Cloudflare AI `AI`.
+- Assets statiques servis depuis `public`.
+- Cron configuré chaque minute.
+- Observabilité des logs activée dans la configuration.
 
-### Décision d'audit
+Le code existant utilise déjà D1 depuis les modules `src/editorial-agent.js` et `src/editorial-feeds.js`. Il crée certaines tables à l'exécution avec `CREATE TABLE IF NOT EXISTS`, notamment `editorial_items`, `editorial_ai_usage` et `editorial_drafts`, et crée des index associés.
 
-**Ne pas créer de migration D1 dans ce dépôt à ce stade.** Le dépôt inspecté est le client FutPulse et ne démontre pas où se trouve le backend 221Cloud ni quelle est sa configuration de base de données. Inventer un binding, un nom de base, un framework de migration ou une structure de Worker risquerait de créer une architecture parallèle et incompatible.
+### Conséquences pour FutPulse
 
-### Informations nécessaires avant le SQL
+Le backend 221Cloud et une base D1 existent donc déjà dans ce dépôt. Il ne faut surtout pas créer une deuxième base ou un deuxième Worker pour FutPulse sans raison architecturale validée.
 
-1. Identifier le dépôt exact du backend 221Cloud / Cloudflare Worker.
-2. Lire sa configuration réelle (Worker, bindings, environnement, secrets référencés sans les afficher).
-3. Identifier la base D1 utilisée et les migrations déjà appliquées.
-4. Vérifier les conventions d'identifiants, dates UTC, contraintes et index.
-5. Adapter le modèle canonique à l'existant, puis seulement proposer une migration SQL versionnée.
+En revanche, l'inspection GitHub du dépôt ne permet pas à elle seule de lire l'état réel de la base D1 distante, les migrations déjà appliquées, les éventuelles tables créées dynamiquement par d'autres chemins d'exécution, ni de confirmer quel déploiement est actuellement actif. Le nom de Worker et sa configuration déclarée ne constituent pas une preuve de déploiement réussi ou de correspondance avec l'environnement de production.
 
-Cet audit est documentaire et en lecture seule. Aucun code applicatif, Worker, binding, base D1, secret, déploiement ou environnement de production n'a été modifié.
+### Décision avant SQL
+
+Aucune migration football n'est créée ou appliquée à ce stade. Avant de proposer le SQL, il faut encore :
+
+1. Examiner les conventions de routage et d'authentification du Worker dans `src/index.js`.
+2. Examiner les schémas D1 déjà créés dans les modules et les éventuelles fonctions d'administration de base de données.
+3. Vérifier l'état réel de la base D1 distante en lecture seule, si l'accès disponible le permet.
+4. Déterminer si FutPulse doit utiliser le D1 principal existant avec séparation logique des données, ou un D1 distinct, après comparaison des contraintes d'isolation, de quotas et de sauvegarde.
+
+Cet audit GitHub est documentaire et en lecture seule pour le backend. Aucun Worker, binding, secret, schéma D1, donnée ou déploiement de production n'a été modifié.
