@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS fp_team_memberships (
   ended_on TEXT,
   source_updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(team_id, player_id, season_id, started_on)
+  -- Membership periods are historical records; duplicate prevention is handled by sync logic.
 );
 
 CREATE TABLE IF NOT EXISTS fp_coach_assignments (
@@ -120,7 +120,7 @@ CREATE TABLE IF NOT EXISTS fp_coach_assignments (
   ended_on TEXT,
   source_updated_at TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(team_id, coach_id, season_id, started_on)
+  -- Assignment periods are historical records; duplicate prevention is handled by sync logic.
 );
 
 CREATE TABLE IF NOT EXISTS fp_fixtures (
@@ -229,7 +229,7 @@ CREATE TABLE IF NOT EXISTS fp_standing_rows (
 CREATE TABLE IF NOT EXISTS fp_player_season_stats (
   id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL REFERENCES fp_players(id) ON DELETE RESTRICT,
-  team_id TEXT REFERENCES fp_teams(id) ON DELETE SET NULL,
+  team_id TEXT NOT NULL REFERENCES fp_teams(id) ON DELETE RESTRICT,
   competition_id TEXT NOT NULL REFERENCES fp_competitions(id) ON DELETE RESTRICT,
   season_id TEXT NOT NULL REFERENCES fp_seasons(id) ON DELETE RESTRICT,
   appearances INTEGER,
@@ -343,7 +343,9 @@ CREATE INDEX IF NOT EXISTS idx_fp_seasons_competition ON fp_seasons(competition_
 CREATE INDEX IF NOT EXISTS idx_fp_teams_country ON fp_teams(country_id);
 CREATE INDEX IF NOT EXISTS idx_fp_memberships_team_season ON fp_team_memberships(team_id, season_id);
 CREATE INDEX IF NOT EXISTS idx_fp_memberships_player ON fp_team_memberships(player_id);
+CREATE INDEX IF NOT EXISTS idx_fp_memberships_identity ON fp_team_memberships(team_id, player_id, started_on);
 CREATE INDEX IF NOT EXISTS idx_fp_coach_assignments_team ON fp_coach_assignments(team_id, season_id);
+CREATE INDEX IF NOT EXISTS idx_fp_coach_assignments_coach ON fp_coach_assignments(coach_id, started_on);
 CREATE INDEX IF NOT EXISTS idx_fp_fixtures_kickoff ON fp_fixtures(kickoff_at);
 CREATE INDEX IF NOT EXISTS idx_fp_fixtures_competition_season_date ON fp_fixtures(competition_id, season_id, kickoff_at);
 CREATE INDEX IF NOT EXISTS idx_fp_fixtures_home_date ON fp_fixtures(home_team_id, kickoff_at);
