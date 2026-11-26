@@ -164,34 +164,70 @@ Ce modèle ne crée pas de tables, ne modifie pas D1, les Workers, les secrets, 
 
 ## 11. Audit de l'architecture 221Cloud avant migration — 26 novembre 2026
 
-L'inspection du dépôt `221cloud/futpulse` seul ne suffisait pas à identifier le backend. Le compte GitHub connecté donne aussi accès au dépôt `221cloud/221cloud-platform.`, qui contient le Worker principal de la plateforme.
+L'inspection du dépôt `221cloud/221cloud-platform.` confirme que le backend principal de la plateforme est un Cloudflare Worker avec D1.
 
-### Éléments confirmés dans 221Cloud
+### 11.1 Infrastructure déclarée
 
-Le fichier `wrangler.jsonc` du dépôt `221cloud/221cloud-platform.` déclare :
+Le fichier `wrangler.jsonc` déclare :
 
 - Worker `221cloud-platform`, entrée `src/index.js`.
 - Binding D1 `DB`, base `221cloud-main`.
 - Binding Cloudflare AI `AI`.
-- Assets statiques servis depuis `public`.
-- Cron configuré chaque minute.
-- Observabilité des logs activée dans la configuration.
+- Assets statiques depuis `public`.
+- Cron chaque minute.
+- Logs d'observabilité activés.
 
-Le code existant utilise déjà D1 depuis les modules `src/editorial-agent.js` et `src/editorial-feeds.js`. Il crée certaines tables à l'exécution avec `CREATE TABLE IF NOT EXISTS`, notamment `editorial_items`, `editorial_ai_usage` et `editorial_drafts`, et crée des index associés.
+### 11.2 Organisation et accès
 
-### Conséquences pour FutPulse
+Le Worker centralise les routes dans `src/index.js`. La fonction `currentUser()` valide le cookie de session 221Cloud à partir du hash du jeton et de la table `sessions`. Les routes API sont soumises à une limitation générale et les mutations API vérifient l'origine de la requête (protection CSRF).
 
-Le backend 221Cloud et une base D1 existent donc déjà dans ce dépôt. Il ne faut surtout pas créer une deuxième base ou un deuxième Worker pour FutPulse sans raison architecturale validée.
+Les routes existantes comprennent notamment :
 
-En revanche, l'inspection GitHub du dépôt ne permet pas à elle seule de lire l'état réel de la base D1 distante, les migrations déjà appliquées, les éventuelles tables créées dynamiquement par d'autres chemins d'exécution, ni de confirmer quel déploiement est actuellement actif. Le nom de Worker et sa configuration déclarée ne constituent pas une preuve de déploiement réussi ou de correspondance avec l'environnement de production.
+- `/api/health` : état applicatif déclaré par le Worker.
+- `/api/private/applications/:slug/rows` : administration des lignes de la table applicative FutPulse, après authentification, vérification de propriété et permissions par opération.
+- `/api/private/applications/:slug/team` : consultation de l'équipe par le propriétaire.
+- `/api/public/applications/:slug/tables/:tableId/rows` : lecture des tables explicitement autorisées pour une application publiée.
+- `/manage/:slug` : interface d'administration privée FutPulse.
 
-### Décision avant SQL
+La table applicative référencée dans le gestionnaire actuel est une table de contenu éditorial configurée dans la base personnalisée de l'application. Ce mécanisme générique ne remplace pas un modèle relationnel de données football.
 
-Aucune migration football n'est créée ou appliquée à ce stade. Avant de proposer le SQL, il faut encore :
+### 11.3 Fonctions FutPulse déjà présentes
 
-1. Examiner les conventions de routage et d'authentification du Worker dans `src/index.js`.
-2. Examiner les schémas D1 déjà créés dans les modules et les éventuelles fonctions d'administration de base de données.
-3. Vérifier l'état réel de la base D1 distante en lecture seule, si l'accès disponible le permet.
-4. Déterminer si FutPulse doit utiliser le D1 principal existant avec séparation logique des données, ou un D1 distinct, après comparaison des contraintes d'isolation, de quotas et de sauvegarde.
+Le Worker contient déjà :
 
-Cet audit GitHub est documentaire et en lecture seule pour le backend. Aucun Worker, binding, secret, schéma D1, donnée ou déploiement de production n'a été modifié.
+- La collecte de flux éditoriaux BBC Sport, Sky Sports, The Guardian, RFI, Wiwsport et Afrik-Foot dans `src/editorial-feeds.js`.
+- Les brouillons et contrôles éditoriaux assistés par IA dans `src/editorial-agent.js`.
+- Une tâche planifiée FutPulse qui s'exécute à 08:00, 13:00 et 19:00 UTC, collecte les flux et peut lancer la génération de brouillons.
+- Une table `futpulse_editorial_auto_runs` créée à l'exécution pour tracer ces exécutions.
+
+Cette automatisation concerne les actualités et brouillons éditoriaux. Elle ne constitue pas encore un service de données sportives : aucune intégration API-Football, synchronisation des rencontres, normalisation des joueurs/équipes, ni API publique de scores/statistiques n'a été identifiée dans les sections FutPulse inspectées.
+
+### 11.4 Persistance et migrations
+
+Le code crée plusieurs tables D1 à l'exécution avec `CREATE TABLE IF NOT EXISTS` et parfois des index. Le dépôt ne présente pas de répertoire de migrations SQL versionnées dans l'arborescence inspectée. Des vérifications de structure et des `ALTER TABLE` défensifs existent aussi.
+
+Les tables identifiées dans le code source ne permettent pas de déduire exhaustivement l'état de la base distante : le contenu réel de D1, les migrations manuelles éventuelles et les données de production n'ont pas été interrogés.
+
+### 11.5 Décision d'architecture recommandée
+
+Réutiliser le Worker 221Cloud existant et son binding D1 est la voie la plus cohérente à étudier, plutôt que créer un second Worker sans nécessité.
+
+Pour éviter de mélanger les domaines :
+- conserver les tables et routes éditoriales existantes ;
+- introduire un domaine football distinct avec ses propres tables et routes ;
+- isoler les synchronisations fournisseurs des requêtes des visiteurs ;
+- enregistrer identifiants fournisseurs, horodatages, statut de fraîcheur et provenance ;
+- ne rendre publiques que les lectures nécessaires à FutPulse ;
+- garder les opérations de synchronisation et d'administration protégées.
+
+Le choix entre la base D1 principale et une base D1 séparée reste à arbitrer après lecture de l'état réel de D1, de ses quotas, des politiques de sauvegarde et de la séparation des données.
+
+### 11.6 Limites de cet audit
+
+L'audit a porté sur le code GitHub et sa configuration déclarée. Il ne prouve pas à lui seul que la dernière version de la branche `main` est celle actuellement déployée. Il n'a pas interrogé la base D1 distante, les variables secrètes ou les journaux de production.
+
+Aucun code du backend, aucune table D1, aucun binding, secret ou déploiement n'a été modifié pendant cet audit. Aucune migration football n'a été créée ou appliquée.
+
+## 12. Prochaine étape technique
+
+Avant de produire une migration SQL, obtenir un inventaire en lecture seule de la base D1 distante (tables, colonnes, index et migrations éventuellement présentes), puis comparer cet inventaire au modèle canonique. Si cet accès en lecture seule n'est pas disponible, préparer une migration candidate explicitement non appliquée, après validation de l'architecture cible.
