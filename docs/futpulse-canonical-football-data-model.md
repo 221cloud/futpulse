@@ -160,3 +160,32 @@ Chaque réponse doit exposer au minimum `data`, `meta.fetchedAt`, `meta.source`,
 ## 10. Hors périmètre
 
 Ce modèle ne crée pas de tables, ne modifie pas D1, les Workers, les secrets, les applications ou les données de production. Il ne suppose pas que tous les champs sont couverts par API-Football. Les migrations ne doivent être créées qu'après examen de l'architecture réelle et validation explicite.
+
+
+## 11. Audit du dépôt FutPulse avant migration — 26 novembre 2026
+
+L'inspection du dépôt `221cloud/futpulse`, branche `main`, a identifié :
+
+- Application cliente React 18 + TypeScript + Vite.
+- Entrées visibles : `src/App.tsx`, `src/main.tsx`, `src/styles.css`.
+- Dépendances déclarées : React, React DOM, Vite, TypeScript et outils de typage.
+- Scripts déclarés : `dev`, `build`, `preview`.
+- Documentation existante : `docs/futpulse-football-data-spec.md`.
+
+Dans les fichiers et la racine inspectés, aucun élément ne permet de confirmer la présence d'un backend, d'un Cloudflare Worker, d'une configuration Wrangler, d'un binding D1, d'un ORM, d'un système de migrations ou d'un schéma SQL existant. Les recherches ciblées dans le dépôt pour `D1`, `wrangler`, `Cloudflare Workers`, `drizzle` et `migrations` n'ont retourné aucun fichier correspondant.
+
+Le README décrit explicitement la version actuelle comme une maquette fonctionnelle côté navigateur, avec des données de démonstration et sans fournisseur football connecté.
+
+### Décision d'audit
+
+**Ne pas créer de migration D1 dans ce dépôt à ce stade.** Le dépôt inspecté est le client FutPulse et ne démontre pas où se trouve le backend 221Cloud ni quelle est sa configuration de base de données. Inventer un binding, un nom de base, un framework de migration ou une structure de Worker risquerait de créer une architecture parallèle et incompatible.
+
+### Informations nécessaires avant le SQL
+
+1. Identifier le dépôt exact du backend 221Cloud / Cloudflare Worker.
+2. Lire sa configuration réelle (Worker, bindings, environnement, secrets référencés sans les afficher).
+3. Identifier la base D1 utilisée et les migrations déjà appliquées.
+4. Vérifier les conventions d'identifiants, dates UTC, contraintes et index.
+5. Adapter le modèle canonique à l'existant, puis seulement proposer une migration SQL versionnée.
+
+Cet audit est documentaire et en lecture seule. Aucun code applicatif, Worker, binding, base D1, secret, déploiement ou environnement de production n'a été modifié.
