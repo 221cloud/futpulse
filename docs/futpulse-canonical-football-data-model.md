@@ -228,6 +228,43 @@ L'audit a porté sur le code GitHub et sa configuration déclarée. Il ne prouve
 
 Aucun code du backend, aucune table D1, aucun binding, secret ou déploiement n'a été modifié pendant cet audit. Aucune migration football n'a été créée ou appliquée.
 
-## 12. Prochaine étape technique
+## 12. Inventaire D1 déductible du code source — 26 novembre 2026
 
-Avant de produire une migration SQL, obtenir un inventaire en lecture seule de la base D1 distante (tables, colonnes, index et migrations éventuellement présentes), puis comparer cet inventaire au modèle canonique. Si cet accès en lecture seule n'est pas disponible, préparer une migration candidate explicitement non appliquée, après validation de l'architecture cible.
+### 12.1 Résultat de l'inspection statique
+
+Une recherche des instructions `CREATE TABLE IF NOT EXISTS` dans `src/index.js` a identifié 41 noms de tables créées par le Worker, auxquels s'ajoutent les tables éditoriales créées dans les modules importés.
+
+Les domaines visibles dans le code sont notamment :
+- Comptes et sécurité : sessions, tentatives de connexion, événements de sécurité, vérification e-mail.
+- API et automatisation : limites de requêtes, tâches d'automatisation, jetons d'accès assistant, tables OAuth.
+- Applications : fichiers, versions, dossiers, publications, équipes, permissions et structures de bases personnalisées.
+- 221Cloud Pro : clients, devis, factures, dépenses, caisse, stock, fournisseurs, interventions et calendrier.
+- FutPulse éditorial : `futpulse_editorial_auto_runs`, `editorial_items`, `editorial_ai_usage`, `editorial_drafts`.
+
+Le code contient également des adaptations de schéma avec `PRAGMA table_info` et `ALTER TABLE`, et une consultation de `sqlite_master`. Certaines tables de base (par exemple les comptes, projets et sessions) sont utilisées par le Worker sans être toutes créées dans le fichier principal : il serait donc incorrect de considérer cette liste comme l'inventaire complet de D1.
+
+Aucun nom de table football (rencontres, équipes, joueurs, compétitions, événements de match, classements ou statistiques) n'a été trouvé dans les instructions de création statique du Worker inspecté.
+
+### 12.2 Ce qui n'a pas pu être vérifié
+
+Aucun outil Cloudflare/D1 connecté n'est disponible dans l'environnement de cette session. Je n'ai donc pas pu exécuter les requêtes en lecture seule sur la base distante, par exemple :
+
+- `SELECT name, type FROM sqlite_master WHERE type IN ('table','index') ORDER BY type, name;`
+- `PRAGMA table_info('nom_de_table');`
+- `PRAGMA index_list('nom_de_table');`
+
+L'inventaire réel de `221cloud-main`, les colonnes et index actuellement déployés, ainsi que les éventuelles différences entre le dépôt et la production restent non vérifiés. Je n'ai pas tenté d'utiliser ni de demander un jeton Cloudflare, et aucun secret n'a été lu.
+
+### 12.3 Décision de prudence
+
+Le code source confirme une forte utilisation de la base principale par les domaines 221Cloud existants. Il est raisonnable de conserver le Worker comme point d'entrée, mais il serait prématuré d'appliquer les tables football à `221cloud-main` sans connaître l'état réel, les contraintes de sauvegarde et les limites du compte.
+
+La voie sûre est donc :
+1. Obtenir l'inventaire D1 depuis le tableau de bord Cloudflare ou via une commande Wrangler en lecture seule, exécutée par le propriétaire du compte.
+2. Comparer cet inventaire aux tables déjà créées par le Worker.
+3. Préparer une migration SQL football candidate, versionnée et non appliquée.
+4. Ne demander l'autorisation d'écriture qu'après revue du SQL, de la stratégie de sauvegarde et du choix entre base partagée et base séparée.
+
+## 13. Prochaine étape technique
+
+L'audit GitHub est terminé. L'inventaire de production nécessite un accès Cloudflare qui n'est pas connecté ici. Une fois l'inventaire obtenu, nous pourrons arrêter le schéma cible et préparer la migration candidate sans toucher à la production.
