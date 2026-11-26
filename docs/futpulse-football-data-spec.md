@@ -1,6 +1,6 @@
 # Cahier des charges — Données football et moteur IA FutPulse
 
-**Statut :** proposition technique à valider. Documentation uniquement : aucun fournisseur n'est connecté, aucune clé API n'est requise et aucune donnée de production n'est modifiée.
+**Statut :** API-Football est retenu comme fournisseur provisoire n°1 pour les premiers travaux d'intégration. Documentation uniquement : aucun fournisseur n'est encore connecté à la production, aucune clé API n'est requise et aucune donnée de production n'est modifiée.
 
 ## 1. Objectif
 
@@ -47,13 +47,38 @@ Chaque donnée conserve son fournisseur, son identifiant externe, son heure de c
 
 ## 5. Comparaison préliminaire des fournisseurs
 
-### API-Football / API-Sports — premier candidat de test
+### API-Football / API-Sports — fournisseur provisoire n°1
 
-- Offre gratuite publiée : 100 requêtes/jour.
-- Endpoints annoncés : livescore, fixtures, événements, compositions, joueurs et entraîneurs, statistiques, classements.
-- La page de couverture liste Senegal — Ligue 1.
-- La documentation précise que la couverture varie selon la compétition et la saison ; certaines compétitions n'ont pas de livescore et certaines données peuvent être retardées.
-- Conclusion : candidat le plus pertinent pour un premier test ciblé Sénégal + grandes compétitions, mais pas encore fournisseur validé.
+**Décision provisoire : retenu pour préparer le premier adaptateur et poursuivre les validations, sans connexion à la production.**
+
+- Offre gratuite observée dans le compte de test : 100 requêtes/jour.
+- Les endpoints testés permettent de récupérer les fixtures et les événements de match.
+- Les résultats dépendent fortement de la compétition et de la saison ; la présence d'une ligue dans le catalogue ne garantit pas l'accès à toutes ses saisons ou à tous ses types de données.
+- Le forfait gratuit doit être considéré comme un environnement de test et de collecte limitée, pas comme une capacité validée pour couvrir en direct de nombreux championnats.
+- Les droits de stockage, d'affichage et de redistribution dans une application publique doivent être confirmés dans les conditions applicables avant toute mise en production.
+
+**Tests manuels réalisés avec le compte gratuit de l'utilisateur :**
+
+1. **Premier League, saison 2024 — fixtures**
+   - Requête : league=39, season=2024, du 19 au 20 octobre 2024.
+   - Résultat observé : 9 matchs, aucune erreur, tous au statut FT.
+   - Les réponses contenaient les équipes, identifiants, scores finaux, scores à la mi-temps, dates, stades et journées.
+
+2. **Tottenham – West Ham — événements**
+   - Fixture : 1208099 ; score final observé : 4–1.
+   - Résultat observé : 20 événements.
+   - Détail reçu : 5 événements de but, 4 cartons jaunes, 1 carton rouge, 9 remplacements et 1 événement VAR.
+   - Les événements contenaient les minutes, équipes, joueurs et, lorsque renseignés, les passeurs.
+   - Certains champs d'assistance étaient nuls : la complétude n'est donc pas absolue.
+
+3. **Ligue 1 sénégalaise — couverture**
+   - Les tests précédents ont montré un accès historique partiel, notamment pour certains matchs et événements.
+   - La saison 2026 n'était pas accessible avec le forfait gratuit testé.
+   - Les données de joueurs, classements, entraîneurs et effectifs sénégalais doivent être considérées comme non validées ou incomplètes tant que des tests spécifiques ne démontrent pas le contraire.
+
+4. **Limite de la validation**
+   - Les tests sont des essais manuels effectués dans le tableau de bord ; ils ne constituent pas un test automatisé de l'intégration 221Cloud.
+   - Les classements, effectifs, profils complets, statistiques détaillées, données live et droits de redistribution restent à vérifier.
 
 Sources :
 - https://www.api-football.com/pricing/
@@ -86,15 +111,19 @@ Sources :
 ## 6. Plan de test fournisseur — sans engagement payant
 
 ### Phase A — couverture
-Pour API-Football, vérifier dans la réponse réelle de l'endpoint ligues/saisons le champ de couverture de la Ligue 1 sénégalaise : fixtures, events, lineups, statistics et players. Répéter pour les compétitions prioritaires africaines et internationales. Ne pas déduire la disponibilité d'une simple présence du nom de la compétition.
+
+Pour API-Football, vérifier dans les réponses réelles les saisons et les champs de couverture des compétitions prioritaires : fixtures, events, lineups, statistics et players. Répéter pour les compétitions africaines et internationales. Ne pas déduire la disponibilité d'une simple présence du nom de la compétition.
 
 ### Phase B — qualité
+
 Sur un échantillon de matchs terminés et en cours, comparer score final et statut, horodatage et minute, buts, cartons, remplacements, compositions, statistiques, profils joueurs et entraîneurs. Comparer à une source officielle ou indépendante fiable lorsque disponible. Mesurer retards, champs manquants et divergences.
 
 ### Phase C — quotas et coûts
-Simuler le nombre de compétitions suivies, de matchs en direct et d'appels par jour. Avec 100 requêtes/jour, le plan gratuit API-Football est un environnement de validation, pas un quota réaliste pour un service public multi-compétitions. Aucun plan payant sans décision explicite.
+
+Simuler le nombre de compétitions suivies, de matchs en direct et d'appels par jour. Avec 100 requêtes/jour sur le forfait gratuit testé, prévoir une collecte sélective et un cache serveur strict. Aucun plan payant sans décision explicite.
 
 ### Phase D — décision
+
 Noter chaque fournisseur : couverture Sénégal/Afrique (25 %), fraîcheur live (20 %), exactitude/complétude (20 %), coût et quotas (15 %), stabilité/documentation (10 %), droits d'utilisation et conditions de redistribution (10 %). La décision finale exige des tests réels et la lecture des conditions contractuelles.
 
 ## 7. Modèle interne indépendant du fournisseur
@@ -116,8 +145,8 @@ Les identifiants fournisseur ne deviennent jamais les identifiants publics perma
 
 ## 9. Ordre de réalisation
 
-1. Valider ce cahier des charges.
-2. Réaliser les tests de couverture et de fraîcheur avec un compte gratuit API-Football, sans exposer la clé côté client.
+1. Enregistrer API-Football comme fournisseur provisoire n°1 et conserver le choix réversible.
+2. Terminer les tests de couverture, qualité, quotas et droits d'utilisation avec le compte gratuit.
 3. Définir et relire le schéma canonique et les migrations.
 4. Construire un adaptateur isolé et les endpoints API communs.
 5. Tester d'abord une compétition et un petit nombre de matchs.
