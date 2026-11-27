@@ -30,7 +30,7 @@ jobs:
           node-version: 22
 
       - name: Check Worker TypeScript
-        run: npx --yes --package typescript@5.7.3 tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022,DOM worker/src/index.ts worker/src/providers/apiFootball.ts
+        run: npx --yes --package typescript@5.7.3 tsc --noEmit --target ES2022 --module ESNext --moduleResolution Bundler --lib ES2022,DOM,DOM.Iterable worker/src/index.ts worker/src/providers/apiFootball.ts
 
       - name: Validate Worker bundle without deploying
         run: npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.jsonc
