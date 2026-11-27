@@ -5,7 +5,7 @@ import { normalizeFixtures } from "../src/providers/apiFootball";
 function fixture(status: string) {
   return {
     fixture: { id: 1208099, date: "2024-10-19T11:30:00+00:00", status: { short: status } },
-    league: { id: 39, season: 2024 },
+    league: { id: 39, name: "Premier League", season: 2024 },
     teams: {
       home: { id: 47, name: "Tottenham", logo: "https://example.com/home.png" },
       away: { id:  WestHamId, name: "West Ham", logo: null }
@@ -19,6 +19,7 @@ test("normalizes fixture identity, teams, scores and source", () => {
   const [result] = normalizeFixtures([fixture("FT")]);
   assert.equal(result.id, "1208099");
   assert.equal(result.competitionId, "39");
+  assert.equal(result.competitionName, "Premier League");
   assert.equal(result.season, "2024");
   assert.equal(result.kickoffAt, "2024-10-19T11:30:00+00:00");
   assert.deepEqual(result.homeTeam, {
