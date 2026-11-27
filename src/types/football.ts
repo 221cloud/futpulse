@@ -15,6 +15,7 @@ export interface FootballTeam {
 export interface FootballFixture {
   id: string;
   competitionId: string;
+  competitionName: string;
   season: string;
   kickoffAt: string | null;
   status: FixtureStatus;
