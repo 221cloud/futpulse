@@ -127,7 +127,8 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const email = normalizedEmail(body.email);
     const password = typeof body.password === "string" ? body.password : "";
     const user = await db.prepare("SELECT id,email,display_name,password_hash,password_salt,email_verified_at FROM users WHERE email = ?").bind(email).first<{ id: string; email: string; display_name: string; password_hash: string; password_salt: string; email_verified_at: number | null }>();
-    if (!user || !(await hashPassword(password,user.password_salt)).localeCompare(user.password_hash) === false) {
+    const candidateHash = user ? await hashPassword(password, user.password_salt) : "";
+    if (!user || candidateHash !== user.password_hash) {
       return reply({ error: "invalid_credentials" }, 401, origin);
     }
     if (!user.email_verified_at) return reply({ error: "email_not_verified" }, 403, origin);
