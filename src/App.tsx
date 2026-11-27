@@ -33,7 +33,7 @@ const copy = {
     latest: "Dernières actualités", competitions: "Compétitions suivies", demo: "Version de démonstration",
     demoText: "Les scores et contenus affichés sont fictifs. Aucune source de données en direct n’est encore connectée.",
     search: "Rechercher un club, un joueur, une compétition…", favoriteHint: "Ajoutez vos équipes et compétitions préférées pour les retrouver ici.",
-    profileText: "Votre espace personnel arrivera dans une prochaine version.", empty: "Aucun favori pour le moment.",
+    profileText: "Votre espace personnel arrivera dans une prochaine version.", profileNote: "La création de compte et les paramètres seront ajoutés lors d’une prochaine étape.", empty: "Aucun favori pour le moment.",
     explore: "Explorer les matchs", read: "Lire l’article", allMatches: "Tous les matchs",
     newsTitle: "Le jeu ne s’arrête jamais", newsBody: "Analyses, informations et histoires qui font vibrer le football."
   },
@@ -44,7 +44,7 @@ const copy = {
     latest: "Latest news", competitions: "Followed competitions", demo: "Demo version",
     demoText: "Scores and content shown are fictional. No live data provider is connected yet.",
     search: "Search for a club, player, competition…", favoriteHint: "Add your favorite teams and competitions to find them here.",
-    profileText: "Your personal space is coming in a future release.", empty: "No favorites yet.",
+    profileText: "Your personal space is coming in a future release.", profileNote: "Account creation and settings will be added in a later stage.", empty: "No favorites yet.",
     explore: "Explore matches", read: "Read article", allMatches: "All matches",
     newsTitle: "The game never stops", newsBody: "Stories, insight and updates from the world of football."
   }
@@ -143,8 +143,8 @@ function App() {
       <div className="demo-strip"><span className="demo-dot" />{dataMode === "live" ? "Données du jour chargées depuis API-Football." : dataMode === "loading" ? "Connexion au service football…" : t.demo + " — " + t.demoText}</div>
       <header className="topbar">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setTab("home"); }}>
-          <span className="brand-mark">F<span>+</span></span>
-          <span>FUT<span className="brand-light">PULSE</span></span>
+          <span className="brand-mark">DS</span>
+          <span className="brand-title">THE WORLD OF FOOTBALL</span>
         </a>
         <div className="header-actions">
           <label className="search-box">
@@ -233,9 +233,9 @@ function App() {
             </section>
           )}
 
-          {tab === "profile" && <section className="page-section profile-page"><div className="profile-avatar">DS</div><div className="eyebrow">YOUR SPACE</div><h1>{t.profile}</h1><p>{t.profileText}</p><div className="profile-note">La création de compte et les paramètres seront ajoutés lors d’une prochaine étape.</div></section>}
+          {tab === "profile" && <section className="page-section profile-page"><div className="profile-avatar">DS</div><div className="eyebrow">YOUR SPACE</div><h1>{t.profile}</h1><p>{t.profileText}</p><div className="profile-note">{t.profileNote}</div></section>}
 
-          <footer className="footer"><span>© 2026 FUTPULSE</span><span>BUILT FOR THE LOVE OF FOOTBALL <b>✦</b></span></footer>
+          <footer className="footer"><span>© 2026 DS</span><span>BUILT FOR THE LOVE OF FOOTBALL <b>✦</b></span></footer>
         </main>
       </div>
 
