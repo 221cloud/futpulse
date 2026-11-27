@@ -29,7 +29,8 @@ export default {
       }});
     }
     if (isAuthRoute) {
-      if (!corsOrigin) return json({ error: "origin_not_allowed" }, 403);
+      const publicEmailVerification = request.method === "GET" && url.pathname === "/api/v1/auth/verify";
+      if (!corsOrigin && !publicEmailVerification) return json({ error: "origin_not_allowed" }, 403);
       try {
         const authResponse = await handleAuth(request, env, corsOrigin);
         if (authResponse) return authResponse;
