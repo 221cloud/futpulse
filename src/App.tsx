@@ -329,20 +329,38 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
     teamIndex: number
   ) => {
     const starters = lineup.startXI ?? [];
-    const grid = entry.player?.grid?.split(":").map(Number);
-    const maxRow = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[0]) || 0));
-    const maxCol = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[1]) || 0));
-    if (grid && grid.length === 2 && grid.every((value) => Number.isFinite(value) && value > 0)) {
-      const row = ((grid[0] ?? 1) - 0.5) / maxRow;
-      const col = ((grid[1] ?? 1) - 0.5) / maxCol;
-      return { top: `${teamIndex === 0 ? 100 - row * 100 : row * 100}%`, left: `${col * 100}%` };
+    const validGrid = starters.map((player) => {
+      const parts = player.player?.grid?.split(":").map(Number) ?? [];
+      return { player, row: parts[0], col: parts[1], valid: parts.length === 2 && parts.every((value) => Number.isFinite(value) && value > 0) };
+    });
+    const current = validGrid.find((item) => item.player === entry);
+    let rowIndex = 0;
+    let rowCount = 4;
+    let colIndex = 0;
+    let playersInRow = 1;
+
+    if (current?.valid) {
+      const rows = [...new Set(validGrid.filter((item) => item.valid).map((item) => item.row))].sort((a, b) => (a ?? 0) - (b ?? 0));
+      const row = rows.indexOf(current.row);
+      const sameRow = validGrid.filter((item) => item.valid && item.row === current.row).sort((a, b) => (a.col ?? 0) - (b.col ?? 0));
+      rowIndex = Math.max(0, row);
+      rowCount = Math.max(1, rows.length);
+      colIndex = sameRow.findIndex((item) => item.player === entry);
+      playersInRow = sameRow.length;
+    } else {
+      const pos = (entry.player?.pos ?? "").toUpperCase();
+      const role = pos === "G" ? 0 : pos === "D" ? 1 : pos === "M" ? 2 : 3;
+      const rolePlayers = starters.filter((player) => (player.player?.pos ?? "").toUpperCase() === pos);
+      rowIndex = role;
+      rowCount = 4;
+      colIndex = rolePlayers.indexOf(entry);
+      playersInRow = rolePlayers.length;
     }
-    const pos = (entry.player?.pos ?? "").toUpperCase();
-    const role = pos === "G" ? 0 : pos === "D" ? 1 : pos === "M" ? 2 : 3;
-    const sameRole = starters.filter((player) => (player.player?.pos ?? "").toUpperCase() === pos);
-    const indexInRole = sameRole.indexOf(entry);
-    const rawTop = ((role + 0.5) / 4) * 100;
-    return { top: `${teamIndex === 0 ? 100 - rawTop : rawTop}%`, left: `${((indexInRole + 0.5) / Math.max(1, sameRole.length)) * 100}%` };
+
+    const depth = 8 + ((rowIndex + 0.5) / rowCount) * 42;
+    const top = teamIndex === 0 ? 100 - depth : depth;
+    const left = ((colIndex + 0.5) / Math.max(1, playersInRow)) * 100;
+    return { top: `${top}%`, left: `${left}%` };
   };
   const homeTeamName = stats[0]?.team?.name ?? lineups[0]?.team?.name ?? match.home;
   const awayTeamName = stats[1]?.team?.name ?? lineups[1]?.team?.name ?? match.away;
@@ -411,19 +429,12 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
                 <div><strong>{lineups[1]?.team?.name ?? match.away}</strong><span>{lineups[1]?.formation ?? "Formation non renseignée"}</span></div>
               </div>
               <div className="real-pitch">
-                <div className="real-pitch-half real-pitch-away">
-                  <div className="real-pitch-box"><div className="real-pitch-goalbox" /></div>
-                  <span className="real-pitch-team-name">{lineups[1]?.team?.name ?? match.away}</span>
-                  <span className="real-pitch-formation">{lineups[1]?.formation ?? ""}</span>
-                </div>
-                <div className="real-pitch-half real-pitch-home">
-                  <div className="real-pitch-box"><div className="real-pitch-goalbox" /></div>
-                  <span className="real-pitch-team-name">{lineups[0]?.team?.name ?? match.home}</span>
-                  <span className="real-pitch-formation">{lineups[0]?.formation ?? ""}</span>
-                </div>
-                <div className="real-pitch-centre-circle" />
-                <div className="real-pitch-centre-spot" />
+                <div className="real-pitch-area real-pitch-area-away"><div className="real-pitch-goal" /><div className="real-pitch-penalty-spot" /></div>
+                <div className="real-pitch-area real-pitch-area-home"><div className="real-pitch-goal" /><div className="real-pitch-penalty-spot" /></div>
+                <div className="real-pitch-centre-circle" /><div className="real-pitch-centre-spot" />
                 <div className="real-pitch-halfway-line" />
+                <div className="real-pitch-team-label real-pitch-away-label"><strong>{lineups[1]?.team?.name ?? match.away}</strong><span>{lineups[1]?.formation ?? ""}</span></div>
+                <div className="real-pitch-team-label real-pitch-home-label"><strong>{lineups[0]?.team?.name ?? match.home}</strong><span>{lineups[0]?.formation ?? ""}</span></div>
                 {lineups.map((lineup, teamIndex) => (lineup.startXI ?? []).map((entry, playerIndex) => {
                   const position = getPlayerPosition(entry, lineup, teamIndex);
                   return <div className={teamIndex === 0 ? "pitch-player pitch-home-player" : "pitch-player pitch-away-player"} key={entry.player?.id ?? `${teamIndex}-${playerIndex}`} style={position}>
