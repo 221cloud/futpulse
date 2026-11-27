@@ -223,7 +223,7 @@ function App() {
                 </div>
               </section>
 
-              <NewsSection language={language} articles={newsArticles} status={newsStatus} />
+              <NewsSection language={language} articles={newsArticles} status={newsStatus} onOpen={() => setTab("news")} />
             </>
           )}
 
@@ -314,6 +314,7 @@ function NewsSection({ language, articles, status, expanded = false }: {
   language: Language;
   articles: NewsArticle[];
   status: "loading" | "ready" | "error";
+  onOpen?: () => void;
   expanded?: boolean;
 }) {
   const t = copy[language];
@@ -322,6 +323,7 @@ function NewsSection({ language, articles, status, expanded = false }: {
   return <section className="section-block news-block">
     <div className="section-heading">
       <div><div className="eyebrow">BEYOND THE SCORE</div><h2>{t.latest}</h2></div>
+      {!expanded && onOpen && <button className="text-button" onClick={onOpen}>{t.seeAll} <span>↗</span></button>}
     </div>
     {status === "loading" && <div className="empty-state">{t.newsLoading}</div>}
     {status === "error" && <div className="empty-state">{t.newsError}</div>}
