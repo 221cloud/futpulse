@@ -30,12 +30,21 @@ export interface MatchDetailsData {
   availability: { lineups: boolean; statistics: boolean; events: boolean };
 }
 const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
-export async function getMatchDetails(fixtureId: number): Promise<MatchDetailsData> {
-  const response = await fetch(
+const detailsCache = new Map<number, Promise<MatchDetailsData>>();
+export function getMatchDetails(fixtureId: number): Promise<MatchDetailsData> {
+  const cached = detailsCache.get(fixtureId);
+  if (cached) return cached;
+  const request = fetch(
     `${API_BASE_URL}/api/v1/football/fixtures/${fixtureId}/details`,
     { headers: { Accept: "application/json" } }
-  );
-  if (!response.ok) throw new Error("Impossible de charger les détails du match.");
-  const payload = await response.json() as { data: MatchDetailsData };
-  return payload.data;
+  ).then(async (response) => {
+    if (!response.ok) throw new Error("Impossible de charger les détails du match.");
+    const payload = await response.json() as { data: MatchDetailsData };
+    return payload.data;
+  }).catch((error) => {
+    detailsCache.delete(fixtureId);
+    throw error;
+  });
+  detailsCache.set(fixtureId, request);
+  return request;
 }
