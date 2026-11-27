@@ -144,7 +144,7 @@ function App() {
       <header className="topbar">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setTab("home"); }}>
           <span className="brand-mark">DS</span>
-          <span className="brand-title">THE WORLD OF FOOTBALL</span>
+          <span className="brand-title">FUT<span className="brand-light">PULSE</span></span>
         </a>
         <div className="header-actions">
           <label className="search-box">
@@ -180,7 +180,7 @@ function App() {
               <section className="hero">
                 <div className="hero-glow" />
                 <div className="hero-content">
-                  <div className="eyebrow"><span className="eyebrow-line" /> THE WORLD OF FOOTBALL</div>
+                  <div className="eyebrow"><span className="eyebrow-line" /> FUTPULSE</div>
                   <h1>{t.greeting.split(",")[0]}<br /><span>{t.greeting.includes(",") ? t.greeting.split(",").slice(1).join(",").trim() : ""}</span></h1>
                   <p>{t.subtitle}</p>
                   <button className="primary-button" onClick={() => setTab("matches")}>{t.explore}<span>↗</span></button>
@@ -235,7 +235,7 @@ function App() {
 
           {tab === "profile" && <section className="page-section profile-page"><div className="profile-avatar">DS</div><div className="eyebrow">YOUR SPACE</div><h1>{t.profile}</h1><p>{t.profileText}</p><div className="profile-note">{t.profileNote}</div></section>}
 
-          <footer className="footer"><span>© 2026 DS</span><span>BUILT FOR THE LOVE OF FOOTBALL <b>✦</b></span></footer>
+          <footer className="footer"><span>© 2026 FUTPULSE</span><span>BUILT FOR THE LOVE OF FOOTBALL <b>✦</b></span></footer>
         </main>
       </div>
 
