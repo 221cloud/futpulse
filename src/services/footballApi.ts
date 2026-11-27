@@ -12,9 +12,10 @@ export class FootballApiError extends Error {
   }
 }
 
-export async function getFootballFixtures(date: string): Promise<FootballFixturesResponse> {
+export async function getFootballFixtures(date?: string): Promise<FootballFixturesResponse> {
+  const query = date ? `date=${encodeURIComponent(date)}` : "next=10";
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/football/fixtures?date=${encodeURIComponent(date)}`,
+    `${API_BASE_URL}/api/v1/football/fixtures?${query}`,
     { headers: { Accept: "application/json" } }
   );
 
