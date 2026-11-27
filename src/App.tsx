@@ -64,6 +64,7 @@ function App() {
   const [favorites, setFavorites] = useState<string[]>(["PSG", "Sénégal"]);
   const [apiMatches, setApiMatches] = useState<Match[]>([]);
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [selectedArticle, setSelectedArticle] = useState<NewsArticle | null>(null);
   const [newsStatus, setNewsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [dataMode, setDataMode] = useState<"loading" | "live" | "upcoming" | "empty">("loading");
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "upcoming" | "finished">("all");
@@ -222,7 +223,7 @@ function App() {
                 </div>
               </section>
 
-              <NewsSection language={language} articles={newsArticles} status={newsStatus} onOpen={() => setTab("news")} />
+              <NewsSection language={language} articles={newsArticles} status={newsStatus} onOpen={() => setTab("news")} onArticleOpen={setSelectedArticle} />
             </>
           )}
 
@@ -243,7 +244,7 @@ function App() {
             </section>
           )}
 
-          {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} articles={newsArticles} status={newsStatus} expanded /></section>}
+          {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} articles={newsArticles} status={newsStatus} expanded onArticleOpen={setSelectedArticle} /></section>}
 
           {tab === "favorites" && (
             <section className="page-section"><div className="page-heading"><div className="eyebrow">YOUR GAME</div><h1>{t.favorites}</h1><p>{t.favoriteHint}</p></div>
@@ -259,6 +260,7 @@ function App() {
       </div>
 
       {selectedMatch && <MatchDetails match={selectedMatch} onClose={() => setSelectedMatch(null)} />}
+      {selectedArticle && <NewsArticleModal article={selectedArticle} language={language} onClose={() => setSelectedArticle(null)} />}
 
       <nav className="mobile-nav">
         {navItems.map((item) => <button key={item.id} className={tab === item.id ? "mobile-nav-item active" : "mobile-nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{t[item.id]}</small></button>)}
@@ -319,12 +321,30 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
         <div className="detail-section">
           <h3>Compositions</h3>
           {!details.availability.lineups ? <p className="detail-empty">Les compositions ne sont pas encore publiées pour cette rencontre.</p> :
-            <div className="lineup-grid">{details.lineups.map((lineup, index) => <div className="lineup-team" key={lineup.team?.name ?? index}>
-              <strong>{lineup.team?.name ?? "Équipe"} {lineup.formation ? `· ${lineup.formation}` : ""}</strong>
-              <span className="lineup-label">Titulaires</span>
-              {(lineup.startXI ?? []).map((entry, playerIndex) => <div className="detail-player" key={entry.player?.id ?? playerIndex}><span>{entry.player?.number ?? "—"}</span>{entry.player?.name ?? "Joueur"} <small>{entry.player?.pos ?? ""}</small></div>)}
-              {(lineup.substitutes ?? []).length > 0 && <><span className="lineup-label">Remplaçants</span>{(lineup.substitutes ?? []).map((entry, playerIndex) => <div className="detail-player" key={entry.player?.id ?? playerIndex}><span>{entry.player?.number ?? "—"}</span>{entry.player?.name ?? "Joueur"} <small>{entry.player?.pos ?? ""}</small></div>)}</>}
-            </div>)}</div>}
+            <div className="lineup-grid">{details.lineups.map((lineup, index) => {
+              const starters = lineup.startXI ?? [];
+              const positionGroups = ["G", "D", "M", "F"].map((position) => ({
+                position,
+                players: starters.filter((entry) => (entry.player?.pos ?? "").toUpperCase() === position)
+              })).filter((group) => group.players.length > 0);
+              return <div className="lineup-team" key={lineup.team?.name ?? index}>
+                <div className="lineup-team-heading"><strong>{lineup.team?.name ?? "Équipe"}</strong><span>{lineup.formation ?? "Formation"}</span></div>
+                <div className="lineup-pitch">
+                  {positionGroups.map((group) => <div className="lineup-position-row" key={group.position}>
+                    {group.players.map((entry, playerIndex) => <div className="lineup-starter" key={entry.player?.id ?? playerIndex}>
+                      <span className="starter-number">{entry.player?.number ?? "—"}</span>
+                      <span className="starter-name">{entry.player?.name ?? "Joueur"}</span>
+                    </div>)}
+                  </div>)}
+                </div>
+                <div className="lineup-bench">
+                  <span className="lineup-label">Remplaçants · {(lineup.substitutes ?? []).length}</span>
+                  <div className="bench-list">{(lineup.substitutes ?? []).map((entry, playerIndex) => <div className="bench-player" key={entry.player?.id ?? playerIndex}>
+                    <span>{entry.player?.number ?? "—"}</span><strong>{entry.player?.name ?? "Joueur"}</strong><small>{entry.player?.pos ?? ""}</small>
+                  </div>)}</div>
+                </div>
+              </div>;
+            })}</div>}
         </div>
         <div className="detail-section">
           <h3>Statistiques</h3>
@@ -363,11 +383,12 @@ function formatNewsDate(value: string, language: Language): string {
   });
 }
 
-function NewsSection({ language, articles, status, onOpen, expanded = false }: {
+function NewsSection({ language, articles, status, onOpen, onArticleOpen, expanded = false }: {
   language: Language;
   articles: NewsArticle[];
   status: "loading" | "ready" | "error";
   onOpen?: () => void;
+  onArticleOpen: (article: NewsArticle) => void;
   expanded?: boolean;
 }) {
   const t = copy[language];
@@ -382,7 +403,7 @@ function NewsSection({ language, articles, status, onOpen, expanded = false }: {
     {status === "error" && <div className="empty-state">{t.newsError}</div>}
     {status === "ready" && articles.length === 0 && <div className="empty-state">{t.newsEmpty}</div>}
     {status === "ready" && visibleArticles.length > 0 && <div className="news-grid">
-      {visibleArticles.map((article, index) => <article className="news-card" key={article.id}>
+      {visibleArticles.map((article, index) => <article className="news-card news-card-clickable" key={article.id} onClick={() => onArticleOpen(article)}>
         <div className="news-art">
           {article.imageUrl
             ? <img className="news-image" src={article.imageUrl} alt="" loading="lazy" />
@@ -395,10 +416,27 @@ function NewsSection({ language, articles, status, onOpen, expanded = false }: {
           <h3>{article.title}</h3>
           {article.content && <p className="news-excerpt">{article.content}</p>}
           {article.source && <span className="news-source">{t.newsSource} : {article.source}</span>}
+          <button className="news-read-button" onClick={(event) => { event.stopPropagation(); onArticleOpen(article); }}>{t.read} ↗</button>
         </div>
       </article>)}
     </div>}
   </section>;
+}
+
+function NewsArticleModal({ article, language, onClose }: { article: NewsArticle; language: Language; onClose: () => void }) {
+  const date = article.publishedAt ? formatNewsDate(article.publishedAt, language) : "";
+  return <div className="news-modal-backdrop" onClick={onClose} role="presentation">
+    <article className="news-modal" role="dialog" aria-modal="true" aria-label={article.title} onClick={(event) => event.stopPropagation()}>
+      <button className="modal-close" onClick={onClose} aria-label="Fermer">×</button>
+      {article.imageUrl && <img className="news-modal-image" src={article.imageUrl} alt="" />}
+      <div className="news-modal-body">
+        <div className="eyebrow">{article.category}</div>
+        <h2>{article.title}</h2>
+        {(date || article.source) && <p className="news-modal-meta">{[date, article.source].filter(Boolean).join(" · ")}</p>}
+        <div className="news-modal-content">{article.content || "Aucun contenu supplémentaire pour cet article."}</div>
+      </div>
+    </article>
+  </div>;
 }
 
 export default App;
