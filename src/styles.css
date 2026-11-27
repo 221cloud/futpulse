@@ -72,3 +72,28 @@
 .news-copy h3{overflow-wrap:anywhere}
 .news-excerpt{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;margin:0 0 10px;color:#9ba9b5;font-size:10px;line-height:1.55}
 .news-source{margin-top:auto;color:#718394;font-size:8px}
+
+/* Live match centre data */
+.match-modal{max-height:88vh;overflow-y:auto}
+.detail-section{margin-top:22px;padding-top:17px;border-top:1px solid var(--line)}
+.detail-section h3{margin:0 0 12px;color:#e2edf4;font-family:'Space Grotesk';font-size:14px}
+.detail-empty{margin:0;color:#8795a4;font-size:10px;line-height:1.6}
+.lineup-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.lineup-team{min-width:0;padding:12px;border:1px solid var(--line);border-radius:7px;background:rgba(4,10,15,.25)}
+.lineup-team>strong{display:block;margin-bottom:12px;color:#cbd7e1;font-size:10px}
+.lineup-label{display:block;margin:12px 0 6px;color:var(--green);font-size:8px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.detail-player{display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);color:#b7c4cf;font-size:9px}
+.detail-player>span{width:19px;color:#7e91a2;font-variant-numeric:tabular-nums}
+.detail-player small{margin-left:auto;color:#718394;font-size:8px}
+.statistics-table{display:grid;gap:0}
+.statistics-head,.statistics-row{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:8px;align-items:center;padding:8px 5px;border-bottom:1px solid rgba(255,255,255,.06);text-align:center}
+.statistics-head{color:#a9b8c5;font-size:8px}
+.statistics-row{color:#c5d0dc;font-size:9px}
+.statistics-row span:nth-child(2){color:#8293a2;font-size:8px}
+.events-list{display:grid;gap:8px}
+.event-row{display:grid;grid-template-columns:38px 1fr;gap:3px 9px;align-items:start;padding:9px;border:1px solid rgba(255,255,255,.06);border-radius:6px;background:rgba(4,10,15,.2)}
+.event-row time{grid-row:span 3;color:var(--green);font-size:10px;font-weight:700}
+.event-row strong{color:#d2dde6;font-size:9px}
+.event-row span,.event-row small{color:#8795a4;font-size:8px}
+.detail-attribution{margin:18px 0 0;color:#607181;text-align:center;font-size:8px}
+@media(max-width:640px){.match-modal{max-height:84vh;padding:24px 15px}.lineup-grid{grid-template-columns:1fr}.statistics-head,.statistics-row{grid-template-columns:1fr 1.3fr 1fr;gap:4px}.detail-player{font-size:10px}}
