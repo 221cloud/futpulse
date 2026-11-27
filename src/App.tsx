@@ -313,15 +313,14 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
   };
   const eventTime = (elapsed?: number | null, extra?: number | null) => elapsed == null ? "—" : `${elapsed}${extra ? "+" + extra : ""}'`;
   const lineups = details?.lineups ?? [];
-  const getPlayerPosition = (entry: MatchLineup["startXI"] extends (infer T)[] | undefined ? T : never, lineup: MatchDetailsData["lineups"][number], teamIndex: number, playerIndex: number) => {
+  const getPlayerPosition = (entry: NonNullable<MatchDetailsData["lineups"][number]["startXI"]>[number], lineup: MatchDetailsData["lineups"][number], teamIndex: number, playerIndex: number) => {
     const starters = lineup.startXI ?? [];
     const grid = entry.player?.grid?.split(":").map(Number);
-    const validGrid = grid && grid.length === 2 && grid.every((value) => Number.isFinite(value) && value > 0);
     const maxRow = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[0]) || 0));
     const maxCol = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[1]) || 0));
-    if (validGrid) {
-      const rawTop = ((grid[0] - 0.5) / maxRow) * 100;
-      return { top: `${teamIndex === 0 ? 100 - rawTop : rawTop}%`, left: `${((grid[1] - 0.5) / maxCol) * 100}%` };
+    if (grid && grid.length === 2 && grid.every((value) => Number.isFinite(value) && value > 0)) {
+      const rawTop = (((grid[0] ?? 1) - 0.5) / maxRow) * 100;
+      return { top: `${teamIndex === 0 ? 100 - rawTop : rawTop}%`, left: `${(((grid[1] ?? 1) - 0.5) / maxCol) * 100}%` };
     }
     const pos = (entry.player?.pos ?? "").toUpperCase();
     const role = pos === "G" ? 0 : pos === "D" ? 1 : pos === "M" ? 2 : 3;
