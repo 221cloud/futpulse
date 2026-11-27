@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getFootballFixtures } from "./services/footballApi";
+import { getMatchDetails } from "./services/footballDetailsApi";
+import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
@@ -280,7 +282,29 @@ function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favo
 }
 
 function MatchDetails({ match, onClose }: { match: Match; onClose: () => void }) {
+  const [details, setDetails] = useState<MatchDetailsData | null>(null);
+  const [detailsStatus, setDetailsStatus] = useState<"loading" | "ready" | "error">("loading");
   const kickoff = match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("fr-FR", { dateStyle: "full", timeStyle: "short" }) : match.time;
+
+  useEffect(() => {
+    let cancelled = false;
+    setDetailsStatus("loading");
+    getMatchDetails(match.id)
+      .then((data) => {
+        if (cancelled) return;
+        setDetails(data);
+        setDetailsStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setDetailsStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, [match.id]);
+
+  const statisticTypes = [...new Set((details?.statistics ?? []).flatMap((team) => (team.statistics ?? []).map((item) => item.type ?? "")))].filter(Boolean);
+  const formatStatistic = (value: string | number | null | undefined) => value === null || value === undefined ? "—" : String(value);
+  const eventTime = (elapsed?: number | null, extra?: number | null) => elapsed == null ? "—" : `${elapsed}${extra ? "+" + extra : ""}'`;
+
   return <div className="match-modal-backdrop" onClick={onClose} role="presentation">
     <section className="match-modal" role="dialog" aria-modal="true" aria-label="Détails du match" onClick={(event) => event.stopPropagation()}>
       <button className="modal-close" onClick={onClose} aria-label="Fermer">×</button>
@@ -288,7 +312,39 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
       <div className="modal-status">{match.status === "live" ? "● EN DIRECT" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "À VENIR"}</div>
       <div className="modal-scoreline"><div><span className="modal-crest">{match.home.slice(0,1)}</span><strong>{match.home}</strong></div><b>{match.status === "upcoming" ? "VS" : `${match.homeScore ?? "–"} : ${match.awayScore ?? "–"}`}</b><div><span className="modal-crest">{match.away.slice(0,1)}</span><strong>{match.away}</strong></div></div>
       <div className="modal-kickoff">{kickoff}</div>
-      <p className="modal-note">Les compositions, statistiques et événements détaillés seront disponibles dans une prochaine version du centre de match.</p>
+
+      {detailsStatus === "loading" && <p className="modal-note">Chargement des compositions, statistiques et événements…</p>}
+      {detailsStatus === "error" && <p className="modal-note">Impossible de charger les détails pour le moment. Réessaie dans quelques instants.</p>}
+      {detailsStatus === "ready" && details && <>
+        <div className="detail-section">
+          <h3>Compositions</h3>
+          {!details.availability.lineups ? <p className="detail-empty">Les compositions ne sont pas encore publiées pour cette rencontre.</p> :
+            <div className="lineup-grid">{details.lineups.map((lineup, index) => <div className="lineup-team" key={lineup.team?.name ?? index}>
+              <strong>{lineup.team?.name ?? "Équipe"} {lineup.formation ? `· ${lineup.formation}` : ""}</strong>
+              <span className="lineup-label">Titulaires</span>
+              {(lineup.startXI ?? []).map((entry, playerIndex) => <div className="detail-player" key={entry.player?.id ?? playerIndex}><span>{entry.player?.number ?? "—"}</span>{entry.player?.name ?? "Joueur"} <small>{entry.player?.pos ?? ""}</small></div>)}
+              {(lineup.substitutes ?? []).length > 0 && <><span className="lineup-label">Remplaçants</span>{(lineup.substitutes ?? []).map((entry, playerIndex) => <div className="detail-player" key={entry.player?.id ?? playerIndex}><span>{entry.player?.number ?? "—"}</span>{entry.player?.name ?? "Joueur"} <small>{entry.player?.pos ?? ""}</small></div>)}</>}
+            </div>)}</div>}
+        </div>
+        <div className="detail-section">
+          <h3>Statistiques</h3>
+          {!details.availability.statistics ? <p className="detail-empty">Les statistiques ne sont pas encore disponibles.</p> :
+            <div className="statistics-table">
+              <div className="statistics-head"><strong>{details.statistics[0]?.team?.name ?? match.home}</strong><strong>Indicateur</strong><strong>{details.statistics[1]?.team?.name ?? match.away}</strong></div>
+              {statisticTypes.map((type) => {
+                const homeValue = details.statistics[0]?.statistics?.find((item) => item.type === type)?.value;
+                const awayValue = details.statistics[1]?.statistics?.find((item) => item.type === type)?.value;
+                return <div className="statistics-row" key={type}><span>{formatStatistic(homeValue)}</span><span>{type}</span><span>{formatStatistic(awayValue)}</span></div>;
+              })}
+            </div>}
+        </div>
+        <div className="detail-section">
+          <h3>Événements</h3>
+          {!details.availability.events ? <p className="detail-empty">Aucun événement détaillé disponible pour le moment.</p> :
+            <div className="events-list">{details.events.map((event, index) => <div className="event-row" key={index}><time>{eventTime(event.time?.elapsed, event.time?.extra)}</time><strong>{event.type ?? "Événement"} · {event.detail ?? ""}</strong><span>{event.player?.name ?? ""}{event.assist?.name ? ` · Passe : ${event.assist.name}` : ""}</span><small>{event.team?.name ?? ""}</small></div>)}</div>}
+        </div>
+        <p className="detail-attribution">Données fournies par API-Football. Leur disponibilité dépend de la rencontre.</p>
+      </>}
     </section>
   </div>;
 }
