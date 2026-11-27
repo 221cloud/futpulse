@@ -433,8 +433,6 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
                 <div className="real-pitch-area real-pitch-area-home"><div className="real-pitch-goal" /><div className="real-pitch-penalty-spot" /></div>
                 <div className="real-pitch-centre-circle" /><div className="real-pitch-centre-spot" />
                 <div className="real-pitch-halfway-line" />
-                <div className="real-pitch-team-label real-pitch-away-label"><strong>{lineups[1]?.team?.name ?? match.away}</strong><span>{lineups[1]?.formation ?? ""}</span></div>
-                <div className="real-pitch-team-label real-pitch-home-label"><strong>{lineups[0]?.team?.name ?? match.home}</strong><span>{lineups[0]?.formation ?? ""}</span></div>
                 {lineups.map((lineup, teamIndex) => (lineup.startXI ?? []).map((entry, playerIndex) => {
                   const position = getPlayerPosition(entry, lineup, teamIndex);
                   return <div className={teamIndex === 0 ? "pitch-player pitch-home-player" : "pitch-player pitch-away-player"} key={entry.player?.id ?? `${teamIndex}-${playerIndex}`} style={position}>
