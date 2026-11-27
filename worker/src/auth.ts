@@ -10,6 +10,7 @@ interface D1Database {
 export interface AuthEnv {
   DB?: D1Database;
   APP_ORIGIN?: string;
+  API_ORIGIN?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
 }
@@ -110,7 +111,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return reply({ error: "invalid_email" }, 400, origin);
     if (displayName.length < 2 || displayName.length > 70) return reply({ error: "invalid_display_name" }, 400, origin);
     if (password.length < 10 || password.length > 128) return reply({ error: "password_must_be_10_to_128_characters" }, 400, origin);
-    if (!env.RESEND_API_KEY || !env.RESEND_FROM || !env.APP_ORIGIN) return reply({ error: "email_service_not_configured" }, 503, origin);
+    if (!env.RESEND_API_KEY || !env.RESEND_FROM || !env.APP_ORIGIN || !env.API_ORIGIN) return reply({ error: "email_service_not_configured" }, 503, origin);
     const existing = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
     if (existing) return reply({ error: "account_already_exists" }, 409, origin);
     const id = crypto.randomUUID();
@@ -120,7 +121,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const tokenHash = await digest(token);
     await db.prepare("INSERT INTO users (id,email,display_name,password_hash,password_salt,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id,email,displayName,passwordHash,salt,now,now).run();
     await db.prepare("INSERT INTO email_verification_tokens (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),id,tokenHash,now+86400,now).run();
-    const link = `${env.APP_ORIGIN.replace(/\/$/, "")}/api/v1/auth/verify?token=${encodeURIComponent(token)}`;
+    const link = `${env.API_ORIGIN.replace(/\/$/, "")}/api/v1/auth/verify?token=${encodeURIComponent(token)}`;
     const sent = await sendEmail(env,email,"Confirme ton adresse e-mail - FutPulse",emailHtml("Bienvenue sur FutPulse", "Confirme ton adresse e-mail pour activer ton compte. Ce lien expire dans 24 heures.",link));
     if (!sent) {
       await db.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
