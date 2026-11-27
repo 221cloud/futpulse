@@ -310,7 +310,7 @@ function formatNewsDate(value: string, language: Language): string {
   });
 }
 
-function NewsSection({ language, articles, status, expanded = false }: {
+function NewsSection({ language, articles, status, onOpen, expanded = false }: {
   language: Language;
   articles: NewsArticle[];
   status: "loading" | "ready" | "error";
