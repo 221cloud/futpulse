@@ -18,6 +18,20 @@ Le fichier `wrangler.jsonc` définit actuellement l'origine locale de développe
 
 La clé API-Football, si son utilisation est validée, devra être ajoutée comme secret Cloudflare nommé `API_FOOTBALL_KEY`. Ne jamais la placer dans le code du navigateur, dans `vars`, ni dans Git.
 
+## Vérifier la clé API-Football (test manuel, sans déploiement)
+
+Un script de diagnostic en lecture seule est disponible :
+
+```bash
+node worker/scripts/check-provider.mjs
+```
+
+Il lit uniquement la variable d'environnement locale `API_FOOTBALL_KEY`, appelle l'endpoint fournisseur `/status`, puis affiche un résultat minimal (connexion, abonnement actif et compteur de requêtes si disponible). Il ne sauvegarde pas la clé, ne l'affiche jamais et ne modifie aucune donnée. Le script n'est pas exécuté automatiquement dans GitHub Actions.
+
+Pour l'utiliser dans GitHub Codespaces, ajoute toi-même `API_FOOTBALL_KEY` comme secret Codespaces dans les paramètres GitHub du dépôt, puis redémarre le Codespace pour charger le secret. Ne colle jamais la clé dans le chat, dans un fichier du dépôt ou dans une commande enregistrée dans l'historique du terminal.
+
+Ce contrôle valide l'accès au compte fournisseur, pas encore la disponibilité des compétitions/saisons ni la route fixtures du Worker.
+
 ## Limites et prochaines vérifications
 
 Ce Worker est un socle de développement, pas encore un service prêt pour la production. Avant toute mise en ligne, il reste notamment à :
