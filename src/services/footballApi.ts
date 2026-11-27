@@ -1,6 +1,6 @@
 import type { FootballFixturesResponse } from "../types/football";
 
-const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "");
+const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
 
 export class FootballApiError extends Error {
   constructor(
@@ -12,16 +12,9 @@ export class FootballApiError extends Error {
   }
 }
 
-export async function getFootballFixtures(): Promise<FootballFixturesResponse> {
-  if (!API_BASE_URL) {
-    throw new FootballApiError(
-      "Le service FutPulse n'est pas encore configuré.",
-      0
-    );
-  }
-
+export async function getFootballFixtures(date: string): Promise<FootballFixturesResponse> {
   const response = await fetch(
-    `${API_BASE_URL}/api/v1/football/fixtures`,
+    `${API_BASE_URL}/api/v1/football/fixtures?date=${encodeURIComponent(date)}`,
     { headers: { Accept: "application/json" } }
   );
 
