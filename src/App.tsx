@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { getFootballFixtures } from "./services/footballApi";
 import type { FootballFixture } from "./types/football";
+import { getNewsArticles } from "./services/newsApi";
+import type { NewsArticle } from "./services/newsApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "favorites" | "profile";
@@ -35,7 +37,8 @@ const copy = {
     search: "Rechercher un club, un joueur, une compétition…", favoriteHint: "Ajoutez vos équipes et compétitions préférées pour les retrouver ici.",
     profileText: "Votre espace personnel arrivera dans une prochaine version.", profileNote: "La création de compte et les paramètres seront ajoutés lors d’une prochaine étape.", empty: "Aucun favori pour le moment.",
     explore: "Explorer les matchs", read: "Lire l’article", allMatches: "Tous les matchs",
-    newsTitle: "Le jeu ne s’arrête jamais", newsBody: "Analyses, informations et histoires qui font vibrer le football."
+    newsTitle: "Le jeu ne s’arrête jamais", newsBody: "Analyses, informations et histoires qui font vibrer le football.",
+    newsLoading: "Chargement des actualités…", newsError: "Les actualités sont momentanément indisponibles.", newsEmpty: "Aucun article publié pour le moment.", newsSource: "Source"
   },
   EN: {
     home: "Home", matches: "Matches", news: "News", favorites: "Favorites", profile: "Profile",
@@ -46,7 +49,8 @@ const copy = {
     search: "Search for a club, player, competition…", favoriteHint: "Add your favorite teams and competitions to find them here.",
     profileText: "Your personal space is coming in a future release.", profileNote: "Account creation and settings will be added in a later stage.", empty: "No favorites yet.",
     explore: "Explore matches", read: "Read article", allMatches: "All matches",
-    newsTitle: "The game never stops", newsBody: "Stories, insight and updates from the world of football."
+    newsTitle: "The game never stops", newsBody: "Stories, insight and updates from the world of football.",
+    newsLoading: "Loading news…", newsError: "News is temporarily unavailable.", newsEmpty: "No published articles yet.", newsSource: "Source"
   }
 };
 
@@ -64,6 +68,8 @@ function App() {
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["PSG", "Sénégal"]);
   const [apiMatches, setApiMatches] = useState<Match[]>([]);
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [newsStatus, setNewsStatus] = useState<"loading" | "ready" | "error">("loading");
   const [dataMode, setDataMode] = useState<"loading" | "live" | "demo">("loading");
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "upcoming" | "finished">("all");
   const [competitionFilter, setCompetitionFilter] = useState("all");
@@ -118,6 +124,20 @@ function App() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getNewsArticles()
+      .then((articles) => {
+        if (cancelled) return;
+        setNewsArticles(articles);
+        setNewsStatus("ready");
+      })
+      .catch(() => {
+        if (!cancelled) setNewsStatus("error");
+      });
+    return () => { cancelled = true; };
   }, []);
 
   const filteredMatches = useMemo(() => {
@@ -203,7 +223,7 @@ function App() {
                 </div>
               </section>
 
-              <NewsSection language={language} onOpen={() => setTab("news")} />
+              <NewsSection language={language} articles={newsArticles} status={newsStatus} />
             </>
           )}
 
@@ -224,7 +244,7 @@ function App() {
             </section>
           )}
 
-          {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} onOpen={() => undefined} expanded /></section>}
+          {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} articles={newsArticles} status={newsStatus} expanded /></section>}
 
           {tab === "favorites" && (
             <section className="page-section"><div className="page-heading"><div className="eyebrow">YOUR GAME</div><h1>{t.favorites}</h1><p>{t.favoriteHint}</p></div>
@@ -280,17 +300,50 @@ function MatchRow({ match }: { match: Match }) {
   return <div className="match-row"><span className="row-competition">{match.competition}</span><strong>{match.home}</strong><span className="row-vs">—</span><strong>{match.away}</strong><span className="row-time">{match.time}</span></div>;
 }
 
-function NewsSection({ language, onOpen, expanded = false }: { language: Language; onOpen: () => void; expanded?: boolean }) {
-  const stories = language === "FR" ? [
-    { category: "ANALYSE", title: "Les nouvelles générations redessinent le visage du football", time: "5 min de lecture", mark: "01" },
-    { category: "AFRIQUE", title: "Le football africain affirme ses ambitions sur la scène mondiale", time: "4 min de lecture", mark: "02" },
-    { category: "TACTIQUE", title: "Pressing, transitions : les tendances qui façonnent le jeu", time: "6 min de lecture", mark: "03" }
-  ] : [
-    { category: "ANALYSIS", title: "A new generation is reshaping the face of football", time: "5 min read", mark: "01" },
-    { category: "AFRICA", title: "African football makes its ambitions known on the world stage", time: "4 min read", mark: "02" },
-    { category: "TACTICS", title: "Pressing and transitions: trends shaping the modern game", time: "6 min read", mark: "03" }
-  ];
-  return <section className="section-block news-block"><div className="section-heading"><div><div className="eyebrow">BEYOND THE SCORE</div><h2>{copy[language].latest}</h2></div>{!expanded && <button className="text-button" onClick={onOpen}>{copy[language].seeAll} <span>↗</span></button>}</div><div className="news-grid">{stories.slice(0, expanded ? 3 : 2).map((story) => <article className="news-card" key={story.mark}><div className="news-art"><span className="news-number">{story.mark}</span><span className="news-symbol">✦</span><span className="news-category">{story.category}</span></div><div className="news-copy"><span>{story.category} · {story.time}</span><h3>{story.title}</h3><button onClick={onOpen}>{copy[language].read} ↗</button></div></article>)}</div></section>;
+function formatNewsDate(value: string, language: Language): string {
+  if (!value) return "";
+  const normalized = /^\\d{4}-\\d{2}-\\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(language === "FR" ? "fr-FR" : "en-GB", {
+    day: "numeric", month: "short", year: "numeric"
+  });
+}
+
+function NewsSection({ language, articles, status, expanded = false }: {
+  language: Language;
+  articles: NewsArticle[];
+  status: "loading" | "ready" | "error";
+  expanded?: boolean;
+}) {
+  const t = copy[language];
+  const visibleArticles = expanded ? articles : articles.slice(0, 2);
+
+  return <section className="section-block news-block">
+    <div className="section-heading">
+      <div><div className="eyebrow">BEYOND THE SCORE</div><h2>{t.latest}</h2></div>
+    </div>
+    {status === "loading" && <div className="empty-state">{t.newsLoading}</div>}
+    {status === "error" && <div className="empty-state">{t.newsError}</div>}
+    {status === "ready" && articles.length === 0 && <div className="empty-state">{t.newsEmpty}</div>}
+    {status === "ready" && visibleArticles.length > 0 && <div className="news-grid">
+      {visibleArticles.map((article, index) => <article className="news-card" key={article.id}>
+        <div className="news-art">
+          {article.imageUrl
+            ? <img className="news-image" src={article.imageUrl} alt="" loading="lazy" />
+            : <span className="news-symbol">✦</span>}
+          <span className="news-number">{String(index + 1).padStart(2, "0")}</span>
+          <span className="news-category">{article.category}</span>
+        </div>
+        <div className="news-copy">
+          <span>{article.category}{article.publishedAt ? ` · ${formatNewsDate(article.publishedAt, language)}` : ""}</span>
+          <h3>{article.title}</h3>
+          {article.content && <p className="news-excerpt">{article.content}</p>}
+          {article.source && <span className="news-source">{t.newsSource} : {article.source}</span>}
+        </div>
+      </article>)}
+    </div>}
+  </section>;
 }
 
 export default App;
