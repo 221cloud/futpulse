@@ -25,6 +25,14 @@ function classifyHttpStatus(status: number): string {
   if (status === 429) return "rate_limit_or_quota";
   return "provider_http_error";
 }
+function classifyProviderErrors(errors: unknown): string {
+  const detail = JSON.stringify(errors ?? "").toLowerCase();
+  if (/token|api.?key|application.?key|credential|auth/.test(detail)) return "missing_or_invalid_api_key";
+  if (/quota|rate.?limit|too many|requests limit/.test(detail)) return "rate_limit_or_quota";
+  if (/subscription|plan|access to this|not available on your/.test(detail)) return "subscription_restriction";
+  if (/parameter|invalid date|invalid.*(league|team|season)|required/.test(detail)) return "invalid_query_parameters";
+  return "provider_rejected_request";
+}
 export interface NormalizedFixture {
   id: string;
   competitionId: string;
@@ -81,7 +89,7 @@ export async function fetchApiFootballFixtures(apiKey: string, params: URLSearch
   }
   const payload = await response.json() as ApiFootballResponse;
   if (payload.errors && Object.keys(payload.errors as object).length > 0) {
-    throw new ApiFootballProviderError(response.status, "provider_rejected_request");
+    throw new ApiFootballProviderError(response.status, classifyProviderErrors(payload.errors));
   }
   return normalizeFixtures(payload.response ?? []);
 }
