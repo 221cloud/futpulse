@@ -1,6 +1,6 @@
 interface ApiFootballFixture {
   fixture: { id: number; date: string; status: { short: string } };
-  league: { id: number; season: number };
+  league: { id: number; name: string; season: number };
   teams: {
     home: { id: number; name: string; logo?: string | null };
     away: { id: number; name: string; logo?: string | null };
@@ -14,6 +14,7 @@ interface ApiFootballResponse {
 export interface NormalizedFixture {
   id: string;
   competitionId: string;
+  competitionName: string;
   season: string;
   kickoffAt: string | null;
   status: "scheduled" | "live" | "finished" | "postponed" | "cancelled" | "unknown";
@@ -37,6 +38,7 @@ export function normalizeFixtures(items: ApiFootballFixture[]): NormalizedFixtur
   return items.map((item) => ({
     id: String(item.fixture.id),
     competitionId: String(item.league.id),
+    competitionName: item.league.name,
     season: String(item.league.season),
     kickoffAt: item.fixture.date || null,
     status: normalizeStatus(item.fixture.status.short),
