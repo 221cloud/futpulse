@@ -37,6 +37,12 @@ async function hashPassword(password: string, salt: string): Promise<string> {
   const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: new TextEncoder().encode(salt), iterations: 210000 }, material, 256);
   return Array.from(new Uint8Array(bits)).map((part) => part.toString(16).padStart(2, "0")).join("");
 }
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let difference = 0;
+  for (let index = 0; index < a.length; index++) difference |= a.charCodeAt(index) ^ b.charCodeAt(index);
+  return difference === 0;
+}
 function cookie(value: string, maxAge: number): string {
   return `futpulse_session=${value}; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=${maxAge}`;
 }
@@ -128,7 +134,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const password = typeof body.password === "string" ? body.password : "";
     const user = await db.prepare("SELECT id,email,display_name,password_hash,password_salt,email_verified_at FROM users WHERE email = ?").bind(email).first<{ id: string; email: string; display_name: string; password_hash: string; password_salt: string; email_verified_at: number | null }>();
     const candidateHash = user ? await hashPassword(password, user.password_salt) : "";
-    if (!user || candidateHash !== user.password_hash) {
+    if (!user || !constantTimeEqual(candidateHash, user.password_hash)) {
       return reply({ error: "invalid_credentials" }, 401, origin);
     }
     if (!user.email_verified_at) return reply({ error: "email_not_verified" }, 403, origin);
