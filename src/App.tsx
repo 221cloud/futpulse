@@ -28,10 +28,10 @@ const demoMatches: Match[] = [
 const copy = {
   FR: {
     home: "Accueil", matches: "Matchs", news: "Actualités", favorites: "Favoris", profile: "Profil",
-    greeting: "Le football, en temps réel.", subtitle: "Toute l’actualité du jeu. Au même endroit.",
+    greeting: "Le football en temps réel.", subtitle: "Toute l’actualité du jeu. Au même endroit.",
     live: "EN DIRECT", today: "À la une", seeAll: "Tout voir", upcoming: "À venir",
     latest: "Dernières actualités", competitions: "Compétitions suivies", demo: "Version de démonstration",
-    demoText: "Les scores et contenus affichés sont fictifs. Aucune source de données en direct n’est encore connectée.",
+    demoText: "Aucun match du jour n’est disponible via le fournisseur. Les rencontres de démonstration sont fictives.",
     search: "Rechercher un club, un joueur, une compétition…", favoriteHint: "Ajoutez vos équipes et compétitions préférées pour les retrouver ici.",
     profileText: "Votre espace personnel arrivera dans une prochaine version.", profileNote: "La création de compte et les paramètres seront ajoutés lors d’une prochaine étape.", empty: "Aucun favori pour le moment.",
     explore: "Explorer les matchs", read: "Lire l’article", allMatches: "Tous les matchs",
@@ -42,7 +42,7 @@ const copy = {
     greeting: "Football, in real time.", subtitle: "Everything happening in the game. All in one place.",
     live: "LIVE", today: "Featured", seeAll: "See all", upcoming: "Upcoming",
     latest: "Latest news", competitions: "Followed competitions", demo: "Demo version",
-    demoText: "Scores and content shown are fictional. No live data provider is connected yet.",
+    demoText: "No matches are currently available from the provider. Demo fixtures are fictional.",
     search: "Search for a club, player, competition…", favoriteHint: "Add your favorite teams and competitions to find them here.",
     profileText: "Your personal space is coming in a future release.", profileNote: "Account creation and settings will be added in a later stage.", empty: "No favorites yet.",
     explore: "Explore matches", read: "Read article", allMatches: "All matches",
@@ -181,7 +181,7 @@ function App() {
                 <div className="hero-glow" />
                 <div className="hero-content">
                   <div className="eyebrow"><span className="eyebrow-line" /> FUTPULSE</div>
-                  <h1>{t.greeting.split(",")[0]}<br /><span>{t.greeting.includes(",") ? t.greeting.split(",").slice(1).join(",").trim() : ""}</span></h1>
+                  <h1>{language === "FR" ? <>Le football<br /><span>en temps réel.</span></> : <>Football<br /><span>in real time.</span></>}</h1>
                   <p>{t.subtitle}</p>
                   <button className="primary-button" onClick={() => setTab("matches")}>{t.explore}<span>↗</span></button>
                 </div>
@@ -190,7 +190,7 @@ function App() {
               </section>
 
               <section className="section-block">
-                <div className="section-heading"><div><div className="eyebrow"><span className="live-pulse" /> {t.live}</div><h2>{t.today}</h2></div><button className="text-button" onClick={() => setTab("matches")}>{t.seeAll} <span>↗</span></button></div>
+                <div className="section-heading"><div><div className="eyebrow">{matches.some((match) => match.status === "live") && <span className="live-pulse" />}{matches.some((match) => match.status === "live") ? t.live : (language === "FR" ? "MATCHS DU JOUR" : "TODAY’S MATCHES")}</div><h2>{t.today}</h2></div><button className="text-button" onClick={() => setTab("matches")}>{t.seeAll} <span>↗</span></button></div>
                 <div className="match-grid">
                   {matches.filter((match) => match.featured).map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} onOpen={() => setSelectedMatch(match)} />)}
                 </div>
@@ -251,10 +251,10 @@ function App() {
 function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favorite: boolean; onFavorite: () => void; onOpen: () => void }) {
   return (
     <article className="match-card">
-      <div className="match-card-top"><span>{match.competition}</span><button className={favorite ? "star-button selected" : "star-button"} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="Ajouter aux favoris">★</button></div>
+      <div className="match-card-top"><span className="competition-name">{match.competition}<span className="competition-star">★</span></span><button className={favorite ? "star-button selected" : "star-button"} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="Ajouter aux favoris">★</button></div>
       <div className="teams">
         <div className="team"><span className="team-crest">{match.home.slice(0, 1)}</span><strong>{match.home}</strong></div>
-        <div className="score-block">{match.status === "upcoming" ? <span className="versus">VS</span> : <strong>{match.homeScore} <i>:</i> {match.awayScore}</strong>}<small className={match.status === "live" ? "match-time live-time" : "match-time"}>{match.status === "live" && <span className="live-pulse" />}{match.time}</small></div>
+        <div className="score-block">{match.status === "upcoming" ? <span className="versus">VS</span> : <strong>{match.homeScore ?? "–"} <i>:</i> {match.awayScore ?? "–"}</strong>}<small className={match.status === "live" ? "match-time live-time" : "match-time"}>{match.status === "live" && <span className="live-pulse" />}{match.time}</small></div>
         <div className="team"><span className="team-crest">{match.away.slice(0, 1)}</span><strong>{match.away}</strong></div>
       </div>
       <div className="match-card-bottom"><span>{match.status === "live" ? "● EN COURS" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "PROCHAIN MATCH"}</span><button className="match-open-button" onClick={onOpen}>Centre du match ↗</button></div>
