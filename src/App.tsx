@@ -347,7 +347,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
   const homeTeamName = stats[0]?.team?.name ?? lineups[0]?.team?.name ?? match.home;
   const awayTeamName = stats[1]?.team?.name ?? lineups[1]?.team?.name ?? match.away;
   const topStats = ["Ball Possession", "Total Shots", "Shots on Goal", "Shots on Target", "Expected Goals", "Corner Kicks"];
-  const keyStats = statisticTypes.filter((type) => topStats.some((key) => type.toLowerCase().includes(key.toLowerCase()))).slice(0, 4);
+  const keyStats = statisticTypes.filter((type) => topStats.some((key) => type.toLowerCase().replace(/[_-]/g, " ").includes(key.toLowerCase()))).slice(0, 4);
   const tabs = [
     { id: "resume" as const, label: "Résumé" },
     { id: "compositions" as const, label: "Compositions" },
