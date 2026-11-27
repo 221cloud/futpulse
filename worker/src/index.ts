@@ -1,4 +1,4 @@
-import { fetchApiFootballFixtures } from "./providers/apiFootball";
+import { fetchApiFootballFixtures, fetchApiFootballFixtureDetails } from "./providers/apiFootball";
 export interface Env { APP_ORIGIN?: string; API_FOOTBALL_KEY?: string; }
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 function json(data: unknown, status = 200, origin?: string): Response {
@@ -27,6 +27,19 @@ export default {
       status: "ok", service: "futpulse-api",
       provider: env.API_FOOTBALL_KEY ? "configured" : "not_configured"
     }, 200, corsOrigin);
+    const detailsMatch = url.pathname.match(/^\/api\/v1\/football\/fixtures\/(\d+)\/details$/);
+    if (detailsMatch) {
+      if (!env.API_FOOTBALL_KEY) return json({
+        error: "provider_not_configured",
+        message: "La clé API-Football n'est pas configurée côté serveur."
+      }, 503, corsOrigin);
+      try {
+        const details = await fetchApiFootballFixtureDetails(env.API_FOOTBALL_KEY, detailsMatch[1]);
+        return json({ data: details, fetchedAt: new Date().toISOString() }, 200, corsOrigin);
+      } catch {
+        return json({ error: "football_details_unavailable", message: "Les détails de cette rencontre sont temporairement indisponibles." }, 502, corsOrigin);
+      }
+    }
     if (url.pathname === "/api/v1/football/fixtures") {
       if (!env.API_FOOTBALL_KEY) return json({
         error: "provider_not_configured",
