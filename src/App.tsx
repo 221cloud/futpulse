@@ -323,7 +323,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
           {!details.availability.lineups ? <p className="detail-empty">Les compositions ne sont pas encore publiées pour cette rencontre.</p> :
             <div className="lineup-grid">{details.lineups.map((lineup, index) => {
               const starters = lineup.startXI ?? [];
-              const positionGroups = ["G", "D", "M", "F"].map((position) => ({
+              const positionGroups = ["F", "M", "D", "G"].map((position) => ({
                 position,
                 players: starters.filter((entry) => (entry.player?.pos ?? "").toUpperCase() === position)
               })).filter((group) => group.players.length > 0);
