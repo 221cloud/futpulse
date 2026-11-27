@@ -91,7 +91,7 @@ function App() {
             : fixture.kickoffAt
               ? new Date(fixture.kickoffAt).toLocaleTimeString(language === "FR" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })
               : "Horaire à confirmer",
-          status: fixture.status === "live" ? "live" : fixture.status === "finished" ? "finished" : "upcoming",
+          status: fixture.status === "live" ? "live" as const : fixture.status === "finished" ? "finished" as const : "upcoming" as const,
           featured: index < 2
         }));
         setApiMatches(formatted);
@@ -104,7 +104,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [language]);
+  }, []);
 
   const filteredMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,7 +112,7 @@ function App() {
     return matches.filter((match) =>
       [match.competition, match.home, match.away].some((value) => value.toLowerCase().includes(q))
     );
-  }, [query]);
+  }, [query, matches]);
 
   const toggleFavorite = (name: string) => {
     setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
