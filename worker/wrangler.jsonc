@@ -4,7 +4,8 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-11-27",
   "vars": {
-    "APP_ORIGIN": "https://supreme-potato-wv4pprg5r6p7c964v-5173.app.github.dev"
+    "APP_ORIGIN": "https://supreme-potato-wv4pprg5r6p7c964v-5173.app.github.dev",
+    "API_ORIGIN": "https://supreme-potato-wv4pprg5r6p7c964v-8787.app.github.dev"
   },
   "d1_databases": [
     {
