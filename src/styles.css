@@ -28,3 +28,40 @@
 .modal-kickoff{padding:13px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:#c5d0dc;text-align:center;font-size:11px}
 .modal-note{margin:18px 0 0;color:#8190a0;font-size:10px;line-height:1.7;text-align:center}
 @media(max-width:640px){.match-filters{align-items:stretch;flex-direction:column}.filter-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}.filter-tab{padding:9px 5px;font-size:9px}.competition-select{width:100%}.match-modal{padding:25px 18px}.modal-scoreline{gap:7px}.modal-scoreline strong{font-size:10px}.modal-scoreline>b{font-size:22px}}
+
+/* FutPulse homepage refinement */
+.hero{min-height:320px;padding:48px clamp(26px,5vw,58px);background:radial-gradient(ellipse at 78% 50%,rgba(31,119,78,.28),transparent 40%),linear-gradient(110deg,#101b25 0%,#101b25 48%,#122b27 100%)}
+.hero h1{font-size:clamp(40px,5vw,64px);line-height:1.02;letter-spacing:-.06em}
+.hero h1 span{display:inline-block;color:var(--green)}
+.hero-content>p{font-size:13px;letter-spacing:.005em}
+.primary-button{min-height:44px;padding:0 18px;gap:30px;font-size:11px;transition:transform .2s ease,box-shadow .2s ease}
+.primary-button:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(57,229,140,.16)}
+.section-heading{margin-bottom:19px}
+.section-heading h2{font-size:23px}
+.match-grid{gap:15px}
+.match-card{padding:17px 18px 13px;border-color:#25313c;border-radius:10px;transition:border-color .2s ease,transform .2s ease,background .2s ease}
+.match-card:hover{transform:translateY(-2px);border-color:rgba(57,229,140,.36);background:linear-gradient(140deg,#15212b,#101820)}
+.competition-name{display:flex;align-items:center;gap:7px;color:#a9b6c2!important;font-size:10px!important;font-weight:650;letter-spacing:.02em}
+.competition-star{color:#e9bd65;font-size:11px}
+.teams{padding:23px 0 21px;grid-template-columns:minmax(0,1fr) 86px minmax(0,1fr)}
+.team{gap:10px}
+.team-crest{width:44px;height:44px;border-color:rgba(255,255,255,.14);background:linear-gradient(145deg,#293d50,#14212d);box-shadow:inset 0 1px rgba(255,255,255,.07);font-size:18px}
+.team strong{font-size:11px;font-weight:650}
+.score-block>strong{font-size:29px;font-weight:750}
+.match-time{font-variant-numeric:tabular-nums;font-size:10px}
+.match-card-bottom{padding-top:12px;font-size:8px}
+.match-card-bottom>span{color:#8b9aaa}
+.match-card-bottom>span:first-child{display:flex;align-items:center;gap:5px}
+.match-open-button{padding:0;border:0;background:transparent;color:#d0d9e0;font-size:9px;transition:color .2s ease}
+.match-open-button:hover{color:var(--green)}
+@media(max-width:640px){
+ .hero{min-height:275px;padding:34px 23px}
+ .hero h1{font-size:42px}
+ .hero-content>p{max-width:250px;font-size:11px;line-height:1.6}
+ .section-heading h2{font-size:21px}
+ .match-card{padding:16px 15px 12px}
+ .teams{padding:21px 0 19px;grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr)}
+ .team-crest{width:42px;height:42px}
+ .team strong{font-size:10px}
+ .score-block>strong{font-size:27px}
+}
