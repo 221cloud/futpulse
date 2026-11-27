@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getFootballFixtures } from "./services/footballApi";
+import type { FootballFixture } from "./types/football";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "favorites" | "profile";
@@ -15,7 +17,7 @@ type Match = {
   featured?: boolean;
 };
 
-const matches: Match[] = [
+const demoMatches: Match[] = [
   { id: 1, competition: "Ligue 1", home: "PSG", away: "Marseille", homeScore: 2, awayScore: 1, time: "68’", status: "live", featured: true },
   { id: 2, competition: "Premier League", home: "Arsenal", away: "Liverpool", time: "20:00", status: "upcoming", featured: true },
   { id: 3, competition: "La Liga", home: "Real Madrid", away: "Barcelona", homeScore: 1, awayScore: 1, time: "Terminé", status: "finished" },
@@ -60,7 +62,49 @@ function App() {
   const [tab, setTab] = useState<Tab>("home");
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["PSG", "Sénégal"]);
+  const [apiMatches, setApiMatches] = useState<Match[]>([]);
+  const [dataMode, setDataMode] = useState<"loading" | "live" | "demo">("loading");
   const t = copy[language];
+  const matches = apiMatches.length > 0 ? apiMatches : demoMatches;
+
+  useEffect(() => {
+    let cancelled = false;
+    const now = new Date();
+    const today = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, "0"),
+      String(now.getDate()).padStart(2, "0")
+    ].join("-");
+
+    getFootballFixtures(today)
+      .then((result) => {
+        if (cancelled) return;
+        const formatted: Match[] = result.data.map((fixture: FootballFixture, index) => ({
+          id: Number(fixture.id) || index + 1,
+          competition: fixture.competitionName || ("Compétition " + fixture.competitionId),
+          home: fixture.homeTeam.name,
+          away: fixture.awayTeam.name,
+          homeScore: fixture.homeScore ?? undefined,
+          awayScore: fixture.awayScore ?? undefined,
+          time: fixture.status === "finished"
+            ? "Terminé"
+            : fixture.kickoffAt
+              ? new Date(fixture.kickoffAt).toLocaleTimeString(language === "FR" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })
+              : "Horaire à confirmer",
+          status: fixture.status === "live" ? "live" : fixture.status === "finished" ? "finished" : "upcoming",
+          featured: index < 2
+        }));
+        setApiMatches(formatted);
+        setDataMode(formatted.length > 0 ? "live" : "demo");
+      })
+      .catch(() => {
+        if (!cancelled) setDataMode("demo");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
   const filteredMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -78,7 +122,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="demo-strip"><span className="demo-dot" />{t.demo} — {t.demoText}</div>
+      <div className="demo-strip"><span className="demo-dot" />{dataMode === "live" ? "Données du jour chargées depuis API-Football." : dataMode === "loading" ? "Connexion au service football…" : t.demo + " — " + t.demoText}</div>
       <header className="topbar">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setTab("home"); }}>
           <span className="brand-mark">F<span>+</span></span>
@@ -147,7 +191,7 @@ function App() {
 
           {tab === "matches" && (
             <section className="page-section">
-              <div className="page-heading"><div className="eyebrow">THE PITCH</div><h1>{t.allMatches}</h1><p>{t.demoText}</p></div>
+              <div className="page-heading"><div className="eyebrow">THE PITCH</div><h1>{t.allMatches}</h1><p>{dataMode === "live" ? "Rencontres du jour fournies par API-Football." : t.demoText}</p></div>
               <div className="match-grid">{filteredMatches.map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} />)}</div>
               {filteredMatches.length === 0 && <div className="empty-state">Aucun résultat pour « {query} ».</div>}
             </section>
