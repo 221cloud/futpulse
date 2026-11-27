@@ -11,6 +11,20 @@ interface ApiFootballResponse {
   errors?: unknown;
   response?: ApiFootballFixture[];
 }
+export class ApiFootballProviderError extends Error {
+  constructor(
+    public readonly providerStatus: number | null,
+    public readonly providerIssue: string
+  ) {
+    super("api_football_provider_error");
+    this.name = "ApiFootballProviderError";
+  }
+}
+function classifyHttpStatus(status: number): string {
+  if (status === 401 || status === 403) return "authentication_or_access";
+  if (status === 429) return "rate_limit_or_quota";
+  return "provider_http_error";
+}
 export interface NormalizedFixture {
   id: string;
   competitionId: string;
@@ -56,10 +70,19 @@ export async function fetchApiFootballFixtures(apiKey: string, params: URLSearch
     const value = params.get(key);
     if (value) providerUrl.searchParams.set(key, value);
   }
-  const response = await fetch(providerUrl.toString(), { headers: { "x-apisports-key": apiKey } });
-  if (!response.ok) throw new Error(`api_football_http_${response.status}`);
+  let response: Response;
+  try {
+    response = await fetch(providerUrl.toString(), { headers: { "x-apisports-key": apiKey } });
+  } catch {
+    throw new ApiFootballProviderError(null, "network_error");
+  }
+  if (!response.ok) {
+    throw new ApiFootballProviderError(response.status, classifyHttpStatus(response.status));
+  }
   const payload = await response.json() as ApiFootballResponse;
-  if (payload.errors && Object.keys(payload.errors as object).length > 0) throw new Error("api_football_provider_error");
+  if (payload.errors && Object.keys(payload.errors as object).length > 0) {
+    throw new ApiFootballProviderError(response.status, "provider_rejected_request");
+  }
   return normalizeFixtures(payload.response ?? []);
 }
 
