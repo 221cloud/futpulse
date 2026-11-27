@@ -64,3 +64,11 @@
  .team strong{font-size:10px}
  .score-block>strong{font-size:27px}
 }
+
+/* Dynamic news cards */
+.news-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+.news-art:has(.news-image):after{background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.42));inset:0;width:auto;height:auto;border:0;border-radius:0;box-shadow:none}
+.news-art .news-number,.news-art .news-category{z-index:1}
+.news-copy h3{overflow-wrap:anywhere}
+.news-excerpt{display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden;margin:0 0 10px;color:#9ba9b5;font-size:10px;line-height:1.55}
+.news-source{margin-top:auto;color:#718394;font-size:8px}
