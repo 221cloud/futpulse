@@ -5,6 +5,8 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword } from "./services/authApi";
+import type { FutPulseUser } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "favorites" | "profile";
@@ -253,7 +255,7 @@ function App() {
             </section>
           )}
 
-          {tab === "profile" && <section className="page-section profile-page"><div className="profile-avatar">DS</div><div className="eyebrow">YOUR SPACE</div><h1>{t.profile}</h1><p>{t.profileText}</p><div className="profile-note">{t.profileNote}</div></section>}
+          {tab === "profile" && <ProfileAccount language={language} /> }
 
           <footer className="footer"><span>© 2026 FUTPULSE</span><span>BUILT FOR THE LOVE OF FOOTBALL <b>✦</b></span></footer>
         </main>
@@ -281,6 +283,96 @@ function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favo
       <div className="match-card-bottom"><span>{match.status === "live" ? "● EN COURS" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "PROCHAIN MATCH"}</span><span className="match-open-hint">Voir le match ↗</span></div>
     </article>
   );
+}
+
+
+function ProfileAccount({ language }: { language: Language }) {
+  const [user, setUser] = useState<FutPulseUser | null>(null);
+  const [mode, setMode] = useState<"login" | "register" | "forgot" | "reset">("login");
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [resetToken, setResetToken] = useState("");
+
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get("resetToken");
+    if (token) { setResetToken(token); setMode("reset"); }
+    getCurrentUser().then(setUser).catch(() => setUser(null));
+  }, []);
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setMessage("");
+    try {
+      if (mode === "register") {
+        await registerAccount(displayName, email, password);
+        setMessage(language === "FR" ? "Un e-mail de confirmation vient de t'être envoyé. Vérifie ta boîte de réception." : "A confirmation email has been sent. Check your inbox.");
+      } else if (mode === "login") {
+        setUser(await loginAccount(email, password));
+        setPassword("");
+      } else if (mode === "forgot") {
+        await requestPasswordReset(email);
+        setMessage(language === "FR" ? "Si cette adresse possède un compte, un lien de réinitialisation a été envoyé." : "If this address has an account, a reset link has been sent.");
+      } else {
+        await resetAccountPassword(resetToken, password);
+        setMode("login"); setPassword(""); setResetToken("");
+        window.history.replaceState({}, "", window.location.pathname);
+        setMessage(language === "FR" ? "Mot de passe modifié. Tu peux maintenant te connecter." : "Password updated. You can now sign in.");
+      }
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "auth_request_failed";
+      const messages: Record<string, string> = {
+        invalid_credentials: language === "FR" ? "Adresse e-mail ou mot de passe incorrect." : "Incorrect email or password.",
+        email_not_verified: language === "FR" ? "Confirme ton adresse e-mail avant de te connecter." : "Verify your email before signing in.",
+        account_already_exists: language === "FR" ? "Un compte existe déjà avec cette adresse." : "An account already exists with this email.",
+        email_service_not_configured: language === "FR" ? "Le service e-mail n'est pas encore configuré." : "Email service is not configured yet.",
+        verification_email_not_sent: language === "FR" ? "L'e-mail de confirmation n'a pas pu être envoyé." : "The verification email could not be sent.",
+        invalid_or_expired_token: language === "FR" ? "Ce lien est invalide ou a expiré." : "This link is invalid or expired.",
+        password_must_be_10_to_128_characters: language === "FR" ? "Le mot de passe doit contenir entre 10 et 128 caractères." : "Password must be 10 to 128 characters."
+      };
+      setError(messages[code] ?? (language === "FR" ? "Une erreur est survenue. Réessaie plus tard." : "Something went wrong. Please try again."));
+    } finally { setBusy(false); }
+  };
+
+  const signOut = async () => {
+    setBusy(true); setError("");
+    try { await logoutAccount(); setUser(null); setMessage(language === "FR" ? "Tu es déconnecté." : "You are signed out."); }
+    catch { setError(language === "FR" ? "La déconnexion a échoué." : "Sign out failed."); }
+    finally { setBusy(false); }
+  };
+
+  const fr = language === "FR";
+  return <section className="page-section profile-page account-page">
+    <div className="profile-avatar">{user ? user.displayName.slice(0, 2).toUpperCase() : "FP"}</div>
+    <div className="eyebrow">YOUR SPACE</div>
+    <h1>{fr ? "Ton compte FutPulse" : "Your FutPulse account"}</h1>
+    {user ? <div className="account-card">
+      <h2>{user.displayName}</h2><p>{user.email}</p>
+      <span className={user.emailVerified ? "account-verified" : "account-unverified"}>{user.emailVerified ? (fr ? "E-mail vérifié" : "Email verified") : (fr ? "E-mail non vérifié" : "Email not verified")}</span>
+      <button className="account-submit" onClick={signOut} disabled={busy}>{fr ? "Se déconnecter" : "Sign out"}</button>
+    </div> : <>
+      <p>{fr ? "Connecte-toi pour retrouver ton espace personnel." : "Sign in to access your personal space."}</p>
+      {mode !== "reset" && <div className="account-mode-tabs">
+        <button className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{fr ? "Connexion" : "Sign in"}</button>
+        <button className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setError(""); setMessage(""); }}>{fr ? "Créer un compte" : "Create account"}</button>
+      </div>}
+      <form className="account-form" onSubmit={submit}>
+        {mode === "register" && <label>{fr ? "Nom affiché" : "Display name"}<input required minLength={2} maxLength={70} autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
+        {mode !== "reset" && <label>{fr ? "Adresse e-mail" : "Email address"}<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>}
+        {(mode === "login" || mode === "register" || mode === "reset") && <label>{fr ? "Mot de passe" : "Password"}<input required type="password" minLength={10} maxLength={128} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
+        {mode === "forgot" && <p className="account-hint">{fr ? "Nous t'enverrons un lien pour choisir un nouveau mot de passe." : "We will email you a link to choose a new password."}</p>}
+        {error && <p className="account-error" role="alert">{error}</p>}
+        {message && <p className="account-message" role="status">{message}</p>}
+        <button className="account-submit" type="submit" disabled={busy}>{busy ? (fr ? "Patiente…" : "Please wait…") : mode === "register" ? (fr ? "Créer mon compte" : "Create account") : mode === "forgot" ? (fr ? "Envoyer le lien" : "Send link") : mode === "reset" ? (fr ? "Modifier le mot de passe" : "Update password") : (fr ? "Se connecter" : "Sign in")}</button>
+      </form>
+      {mode === "login" && <button className="account-link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{fr ? "Mot de passe oublié ?" : "Forgot password?"}</button>}
+      {(mode === "forgot" || mode === "reset") && <button className="account-link" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{fr ? "Retour à la connexion" : "Back to sign in"}</button>}
+    </>}
+    <div className="account-notice">{fr ? "Tes informations sont protégées. Ton mot de passe n'est jamais stocké en clair." : "Your information is protected. Your password is never stored in plain text."}</div>
+  </section>;
 }
 
 function MatchDetails({ match, onClose }: { match: Match; onClose: () => void }) {
