@@ -11,7 +11,7 @@ test("GET /api/v1/football/fixtures returns normalized fixtures", async () => {
       errors: {},
       response: [{
         fixture: { id: 1208099, date: "2024-10-19T11:30:00+00:00", status: { short: "FT" } },
-        league: { id: 39, season: 2024 },
+        league: { id: 39, name: "Premier League", season: 2024 },
         teams: {
           home: { id: 47, name: "Tottenham", logo: null },
           away: { id: 48, name: "West Ham", logo: null }
@@ -26,7 +26,7 @@ test("GET /api/v1/football/fixtures returns normalized fixtures", async () => {
     const response = await worker.fetch(request, { API_FOOTBALL_KEY: "test-key" });
     assert.equal(response.status, 200);
     const body = await response.json() as {
-      data: Array<{ id: string; status: string; homeScore: number; awayScore: number; source: string }>;
+      data: Array<{ id: string; status: string; homeScore: number; awayScore: number; source: string; competitionName: string }>;
       stale: boolean;
     };
     assert.equal(body.data.length, 1);
@@ -35,6 +35,7 @@ test("GET /api/v1/football/fixtures returns normalized fixtures", async () => {
     assert.equal(body.data[0].homeScore, 4);
     assert.equal(body.data[0].awayScore, 1);
     assert.equal(body.data[0].source, "api-football");
+    assert.equal(body.data[0].competitionName, "Premier League");
     assert.equal(body.stale, false);
   } finally {
     globalThis.fetch = originalFetch;
