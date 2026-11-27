@@ -406,3 +406,31 @@
 .real-pitch-area-away:after{bottom:-39px;clip-path:inset(50% 0 0 0)}
 .real-pitch-area-home:after{top:-39px;clip-path:inset(0 0 50% 0)}
 .real-pitch-team-label{display:none}
+
+
+/* FutPulse account area */
+.account-page{max-width:760px;margin:0 auto;padding-top:34px}
+.account-page>.profile-avatar{display:grid;place-items:center;width:68px;height:68px;margin-bottom:18px;border:1px solid rgba(57,229,140,.35);border-radius:50%;background:rgba(57,229,140,.1);color:#39e58c;font-family:'Space Grotesk';font-size:22px;font-weight:800}
+.account-page>h1{margin:8px 0 10px;color:#f2f7fa;font-family:'Space Grotesk';font-size:clamp(27px,4vw,42px)}
+.account-page>p{max-width:520px;color:#94a5b3;font-size:13px;line-height:1.65}
+.account-mode-tabs{display:flex;gap:8px;margin:24px 0 16px;border-bottom:1px solid var(--line)}
+.account-mode-tabs button{padding:11px 14px;border:0;border-bottom:2px solid transparent;background:transparent;color:#8293a2;font-size:11px;font-weight:700;cursor:pointer}
+.account-mode-tabs button.active{border-bottom-color:#39e58c;color:#eff8f2}
+.account-form,.account-card{display:grid;gap:15px;max-width:470px;padding:20px;border:1px solid var(--line);border-radius:10px;background:#0d151e}
+.account-form label{display:grid;gap:7px;color:#b6c3ce;font-size:11px;font-weight:700}
+.account-form input{width:100%;min-height:43px;padding:10px 12px;border:1px solid #2a3946;border-radius:6px;outline:none;background:#111e29;color:#f1f6f9;font:inherit;font-size:13px}
+.account-form input:focus{border-color:#39e58c;box-shadow:0 0 0 2px rgba(57,229,140,.1)}
+.account-submit{min-height:43px;padding:11px 16px;border:0;border-radius:6px;background:#39e58c;color:#062315;font-size:11px;font-weight:800;cursor:pointer}
+.account-submit:disabled{opacity:.6;cursor:wait}
+.account-link{margin:13px 0 0;padding:8px 0;border:0;background:transparent;color:#39e58c;font-size:11px;cursor:pointer}
+.account-error,.account-message{margin:0;padding:10px 12px;border-radius:6px;font-size:11px;line-height:1.5}
+.account-error{border:1px solid rgba(255,107,107,.3);background:rgba(255,107,107,.07);color:#ff9c9c}
+.account-message{border:1px solid rgba(57,229,140,.25);background:rgba(57,229,140,.07);color:#8df0b7}
+.account-hint,.account-notice{color:#8293a2;font-size:10px;line-height:1.6}
+.account-notice{max-width:470px;margin-top:22px;padding-top:16px;border-top:1px solid var(--line)}
+.account-card h2{margin:0;color:#f1f6f9;font-size:18px}
+.account-card p{margin:0;color:#9eafbd;font-size:12px}
+.account-verified,.account-unverified{width:max-content;padding:6px 9px;border-radius:20px;font-size:9px;font-weight:800}
+.account-verified{background:rgba(57,229,140,.1);color:#7de9ad}
+.account-unverified{background:rgba(255,193,90,.1);color:#f4c77b}
+@media(max-width:640px){.account-page{padding:22px 0}.account-form,.account-card{padding:16px}.account-mode-tabs button{padding:10px 9px;font-size:10px}}
