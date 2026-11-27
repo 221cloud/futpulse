@@ -42,7 +42,6 @@
 .match-card{padding:17px 18px 13px;border-color:#25313c;border-radius:10px;transition:border-color .2s ease,transform .2s ease,background .2s ease}
 .match-card:hover{transform:translateY(-2px);border-color:rgba(57,229,140,.36);background:linear-gradient(140deg,#15212b,#101820)}
 .competition-name{display:flex;align-items:center;gap:7px;color:#a9b6c2!important;font-size:10px!important;font-weight:650;letter-spacing:.02em}
-.competition-star{color:#e9bd65;font-size:11px}
 .teams{padding:23px 0 21px;grid-template-columns:minmax(0,1fr) 86px minmax(0,1fr)}
 .team{gap:10px}
 .team-crest{width:44px;height:44px;border-color:rgba(255,255,255,.14);background:linear-gradient(145deg,#293d50,#14212d);box-shadow:inset 0 1px rgba(255,255,255,.07);font-size:18px}
