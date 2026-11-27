@@ -34,6 +34,8 @@ export default {
       }, 503, corsOrigin);
       const allowedParams = ["date", "league", "season", "team", "last", "next"];
       for (const key of url.searchParams.keys()) {
+        // Ignore common analytics parameters added by browsers and link wrappers.
+        if (key.startsWith("utm_") || key === "fbclid") continue;
         if (!allowedParams.includes(key)) return json({ error: "invalid_query_parameter", parameter: key }, 400, corsOrigin);
       }
       try {
