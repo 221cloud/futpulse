@@ -313,7 +313,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
   };
   const eventTime = (elapsed?: number | null, extra?: number | null) => elapsed == null ? "—" : `${elapsed}${extra ? "+" + extra : ""}'`;
   const lineups = details?.lineups ?? [];
-  const getPlayerPosition = (entry: NonNullable<MatchDetailsData["lineups"][number]["startXI"]>[number], lineup: MatchDetailsData["lineups"][number], teamIndex: number, playerIndex: number) => {
+  const getPlayerPosition = (entry: NonNullable<MatchDetailsData["lineups"][number]["startXI"]>[number], lineup: MatchDetailsData["lineups"][number], teamIndex: number) => {
     const starters = lineup.startXI ?? [];
     const grid = entry.player?.grid?.split(":").map(Number);
     const maxRow = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[0]) || 0));
@@ -355,7 +355,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
             <div className="single-lineup-pitch">
               <div className="pitch-team-label pitch-away-label">{lineups[1]?.team?.name ?? match.away} <small>{lineups[1]?.formation ?? ""}</small></div>
               {lineups.map((lineup, teamIndex) => (lineup.startXI ?? []).map((entry, playerIndex) => {
-                const position = getPlayerPosition(entry, lineup, teamIndex, playerIndex);
+                const position = getPlayerPosition(entry, lineup, teamIndex);
                 return <div className={teamIndex === 0 ? "pitch-player pitch-home-player" : "pitch-player pitch-away-player"} key={entry.player?.id ?? `${teamIndex}-${playerIndex}`} style={position}>
                   <span>{entry.player?.number ?? "—"}</span><small>{entry.player?.name ?? "Joueur"}</small>
                 </div>;
