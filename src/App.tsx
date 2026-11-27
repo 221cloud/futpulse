@@ -197,9 +197,9 @@ function App() {
               </section>
 
               <section className="section-block">
-                <div className="section-heading"><div><div className="eyebrow">THE NEXT KICK-OFF</div><h2>{t.upcoming}</h2></div><button className="text-button" onClick={() => setTab("matches")}>{t.seeAll} <span>↗</span></button></div>
+                <div className="section-heading"><div><div className="eyebrow">{language === "FR" ? "PROCHAINS MATCHS" : "UPCOMING FIXTURES"}</div><h2>{t.upcoming}</h2></div><button className="text-button" onClick={() => setTab("matches")}>{t.seeAll} <span>↗</span></button></div>
                 <div className="upcoming-list">
-                  {matches.filter((match) => match.status === "upcoming").map((match) => <MatchRow key={match.id} match={match} />)}
+                  {matches.filter((match) => match.status === "upcoming").slice(0, 6).map((match) => <MatchRow key={match.id} match={match} />)}
                 </div>
               </section>
 
@@ -251,7 +251,7 @@ function App() {
 function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favorite: boolean; onFavorite: () => void; onOpen: () => void }) {
   return (
     <article className="match-card">
-      <div className="match-card-top"><span className="competition-name">{match.competition}<span className="competition-star">★</span></span><button className={favorite ? "star-button selected" : "star-button"} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="Ajouter aux favoris">★</button></div>
+      <div className="match-card-top"><span className="competition-name">{match.competition}</span><button className={favorite ? "star-button selected" : "star-button"} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="Ajouter aux favoris">★</button></div>
       <div className="teams">
         <div className="team"><span className="team-crest">{match.home.slice(0, 1)}</span><strong>{match.home}</strong></div>
         <div className="score-block">{match.status === "upcoming" ? <span className="versus">VS</span> : <strong>{match.homeScore ?? "–"} <i>:</i> {match.awayScore ?? "–"}</strong>}<small className={match.status === "live" ? "match-time live-time" : "match-time"}>{match.status === "live" && <span className="live-pulse" />}{match.time}</small></div>
