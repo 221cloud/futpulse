@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { getFootballFixtures } from "./services/footballApi";
 import { getMatchDetails } from "./services/footballDetailsApi";
 import type { MatchDetailsData } from "./services/footballDetailsApi";
@@ -303,7 +304,7 @@ function ProfileAccount({ language }: { language: Language }) {
     getCurrentUser().then(setUser).catch(() => setUser(null));
   }, []);
 
-  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setBusy(true); setError(""); setMessage("");
     try {
