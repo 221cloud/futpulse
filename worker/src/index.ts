@@ -1,12 +1,6 @@
 import { ApiFootballProviderError, fetchApiFootballFixtures, fetchApiFootballFixtureDetails } from "./providers/apiFootball";
-import { handleAuth } from "./auth";
-export interface Env {
-  APP_ORIGIN?: string;
-  API_FOOTBALL_KEY?: string;
-  DB?: D1Database;
-  RESEND_API_KEY?: string;
-  RESEND_FROM?: string;
-}
+import { handleAuth, type AuthEnv } from "./auth";
+export interface Env extends AuthEnv { API_FOOTBALL_KEY?: string; }
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 function json(data: unknown, status = 200, origin?: string): Response {
   const headers = new Headers(jsonHeaders);
