@@ -5,5 +5,13 @@
   "compatibility_date": "2026-11-27",
   "vars": {
     "APP_ORIGIN": "http://localhost:5173"
-  }
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "futpulse-db",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ]
 }
