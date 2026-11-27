@@ -20,13 +20,6 @@ type Match = {
   kickoffAt?: string | null;
 };
 
-const demoMatches: Match[] = [
-  { id: 1, competition: "Ligue 1", home: "PSG", away: "Marseille", homeScore: 2, awayScore: 1, time: "68’", status: "live", featured: true },
-  { id: 2, competition: "Premier League", home: "Arsenal", away: "Liverpool", time: "20:00", status: "upcoming", featured: true },
-  { id: 3, competition: "La Liga", home: "Real Madrid", away: "Barcelona", homeScore: 1, awayScore: 1, time: "Terminé", status: "finished" },
-  { id: 4, competition: "Ligue 1 Sénégal", home: "Stade de Mbour", away: "Génération Foot", time: "Demain · 17:30", status: "upcoming" }
-];
-
 const copy = {
   FR: {
     home: "Accueil", matches: "Matchs", news: "Actualités", favorites: "Favoris", profile: "Profil",
@@ -70,12 +63,12 @@ function App() {
   const [apiMatches, setApiMatches] = useState<Match[]>([]);
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   const [newsStatus, setNewsStatus] = useState<"loading" | "ready" | "error">("loading");
-  const [dataMode, setDataMode] = useState<"loading" | "live" | "demo">("loading");
+  const [dataMode, setDataMode] = useState<"loading" | "live" | "upcoming" | "empty">("loading");
   const [statusFilter, setStatusFilter] = useState<"all" | "live" | "upcoming" | "finished">("all");
   const [competitionFilter, setCompetitionFilter] = useState("all");
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const t = copy[language];
-  const sourceMatches = apiMatches.length > 0 ? apiMatches : demoMatches;
+  const sourceMatches = apiMatches;
   const matches = useMemo(() => [...sourceMatches].sort((a, b) => {
     const rank = { live: 0, upcoming: 1, finished: 2 };
     return rank[a.status] - rank[b.status];
@@ -91,9 +84,12 @@ function App() {
     ].join("-");
 
     getFootballFixtures(today)
-      .then((result) => {
+      .then(async (todayResult) => {
         if (cancelled) return;
-        const formatted: Match[] = result.data.map((fixture: FootballFixture, index) => ({
+        const usingUpcoming = todayResult.data.length === 0;
+        const fixtures = usingUpcoming ? (await getFootballFixtures()).data : todayResult.data;
+        if (cancelled) return;
+        const formatted: Match[] = fixtures.map((fixture: FootballFixture, index) => ({
           id: Number(fixture.id) || index + 1,
           competition: fixture.competitionName || ("Compétition " + fixture.competitionId),
           home: fixture.homeTeam.name,
@@ -115,10 +111,10 @@ function App() {
         });
         formatted.forEach((match, index) => { match.featured = index < 2; });
         setApiMatches(formatted);
-        setDataMode(formatted.length > 0 ? "live" : "demo");
+        setDataMode(formatted.length === 0 ? "empty" : usingUpcoming ? "upcoming" : "live");
       })
       .catch(() => {
-        if (!cancelled) setDataMode("demo");
+        if (!cancelled) setDataMode("empty");
       });
 
     return () => {
@@ -160,7 +156,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      <div className="demo-strip"><span className="demo-dot" />{dataMode === "live" ? "Données du jour chargées depuis API-Football." : dataMode === "loading" ? "Connexion au service football…" : t.demo + " — " + t.demoText}</div>
+      <div className="demo-strip"><span className="demo-dot" />{dataMode === "live" ? "Matchs du jour chargés depuis API-Football." : dataMode === "upcoming" ? "Aucun match aujourd’hui : les prochaines rencontres réelles sont affichées." : dataMode === "loading" ? "Connexion au service football…" : "Aucune rencontre disponible pour le moment."}</div>
       <header className="topbar">
         <a className="brand" href="#" onClick={(event) => { event.preventDefault(); setTab("home"); }}>
           <span className="brand-mark">DS</span>
@@ -214,6 +210,7 @@ function App() {
                 <div className="match-grid">
                   {matches.filter((match) => match.featured).map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} onOpen={() => setSelectedMatch(match)} />)}
                 </div>
+                {matches.length === 0 && <div className="empty-state">Aucune rencontre réelle n’est disponible actuellement.</div>}
               </section>
 
               <section className="section-block">
@@ -229,7 +226,7 @@ function App() {
 
           {tab === "matches" && (
             <section className="page-section">
-              <div className="page-heading"><div className="eyebrow">THE PITCH</div><h1>{t.allMatches}</h1><p>{dataMode === "live" ? "Rencontres du jour fournies par API-Football." : t.demoText}</p></div>
+              <div className="page-heading"><div className="eyebrow">THE PITCH</div><h1>{t.allMatches}</h1><p>{dataMode === "live" ? "Rencontres du jour fournies par API-Football." : dataMode === "upcoming" ? "Prochaines rencontres fournies par API-Football." : dataMode === "loading" ? "Chargement des rencontres…" : "Aucune rencontre disponible pour le moment."}</p></div>
               <div className="match-filters">
                 <div className="filter-tabs" role="group" aria-label="Filtrer par statut">
                   {(["all", "live", "upcoming", "finished"] as const).map((status) => <button key={status} className={statusFilter === status ? "filter-tab active" : "filter-tab"} onClick={() => setStatusFilter(status)}>{status === "all" ? "Tous" : status === "live" ? "En direct" : status === "upcoming" ? "À venir" : "Terminés"}</button>)}
@@ -240,7 +237,7 @@ function App() {
                 </select>
               </div>
               <div className="match-grid">{filteredMatches.map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} onOpen={() => setSelectedMatch(match)} />)}</div>
-              {filteredMatches.length === 0 && <div className="empty-state">Aucun résultat pour « {query} ».</div>}
+              {filteredMatches.length === 0 && <div className="empty-state">{dataMode === "empty" ? "Aucune rencontre réelle n’est disponible actuellement." : "Aucun résultat pour « " + query + " »."}</div>}
             </section>
           )}
 
