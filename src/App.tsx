@@ -309,7 +309,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
   const formatValue = (value: string | number | null | undefined) => value == null ? "—" : String(value);
   const numberValue = (value: string | number | null | undefined) => {
     if (value == null) return null;
-    const found = String(value).replace(",", ".").match(/-?\\d+(?:\\.\\d+)?/);
+    const found = String(value).replace(",", ".").match(/-?\d+(?:\.\d+)?/);
     return found ? Number(found[0]) : null;
   };
   const eventMinute = (event: MatchDetailsData["events"][number]) =>
