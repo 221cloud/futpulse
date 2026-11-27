@@ -1,4 +1,4 @@
-import { fetchApiFootballFixtures, fetchApiFootballFixtureDetails } from "./providers/apiFootball";
+import { ApiFootballProviderError, fetchApiFootballFixtures, fetchApiFootballFixtureDetails } from "./providers/apiFootball";
 export interface Env { APP_ORIGIN?: string; API_FOOTBALL_KEY?: string; }
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 function json(data: unknown, status = 200, origin?: string): Response {
@@ -54,8 +54,19 @@ export default {
       try {
         const data = await fetchApiFootballFixtures(env.API_FOOTBALL_KEY, url.searchParams);
         return json({ data, fetchedAt: new Date().toISOString(), stale: false }, 200, corsOrigin);
-      } catch {
-        return json({ error: "football_provider_unavailable", message: "Le fournisseur football est temporairement indisponible." }, 502, corsOrigin);
+      } catch (error) {
+        if (error instanceof ApiFootballProviderError) {
+          return json({
+            error: "football_provider_unavailable",
+            provider_status: error.providerStatus,
+            provider_issue: error.providerIssue
+          }, 502, corsOrigin);
+        }
+        return json({
+          error: "football_provider_unavailable",
+          provider_status: null,
+          provider_issue: "unexpected_worker_error"
+        }, 502, corsOrigin);
       }
     }
     return json({ error: "not_found" }, 404, corsOrigin);
