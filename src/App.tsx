@@ -410,16 +410,26 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
                 <b>VS</b>
                 <div><strong>{lineups[1]?.team?.name ?? match.away}</strong><span>{lineups[1]?.formation ?? "Formation non renseignée"}</span></div>
               </div>
-              <div className="single-lineup-pitch">
-                <div className="pitch-team-label pitch-away-label">{lineups[1]?.team?.name ?? match.away}</div>
+              <div className="real-pitch">
+                <div className="real-pitch-half real-pitch-away">
+                  <div className="real-pitch-box"><div className="real-pitch-goalbox" /></div>
+                  <span className="real-pitch-team-name">{lineups[1]?.team?.name ?? match.away}</span>
+                  <span className="real-pitch-formation">{lineups[1]?.formation ?? ""}</span>
+                </div>
+                <div className="real-pitch-half real-pitch-home">
+                  <div className="real-pitch-box"><div className="real-pitch-goalbox" /></div>
+                  <span className="real-pitch-team-name">{lineups[0]?.team?.name ?? match.home}</span>
+                  <span className="real-pitch-formation">{lineups[0]?.formation ?? ""}</span>
+                </div>
+                <div className="real-pitch-centre-circle" />
+                <div className="real-pitch-centre-spot" />
+                <div className="real-pitch-halfway-line" />
                 {lineups.map((lineup, teamIndex) => (lineup.startXI ?? []).map((entry, playerIndex) => {
                   const position = getPlayerPosition(entry, lineup, teamIndex);
                   return <div className={teamIndex === 0 ? "pitch-player pitch-home-player" : "pitch-player pitch-away-player"} key={entry.player?.id ?? `${teamIndex}-${playerIndex}`} style={position}>
                     <span>{entry.player?.number ?? "—"}</span><small>{entry.player?.name ?? "Joueur"}</small>
                   </div>;
                 }))}
-                <div className="pitch-midline" />
-                <div className="pitch-team-label pitch-home-label">{lineups[0]?.team?.name ?? match.home}</div>
               </div>
               <div className="bench-heading"><h3>Remplaçants</h3><span>Effectif disponible</span></div>
               <div className="bench-teams">{lineups.map((lineup, teamIndex) => <div className="bench-team" key={lineup.team?.name ?? teamIndex}>
