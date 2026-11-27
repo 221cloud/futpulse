@@ -219,7 +219,7 @@ function App() {
               <section className="section-block">
                 <div className="section-heading"><div><div className="eyebrow">{language === "FR" ? "PROCHAINS MATCHS" : "UPCOMING FIXTURES"}</div><h2>{t.upcoming}</h2></div><button className="text-button" onClick={() => setTab("matches")}>{t.seeAll} <span>↗</span></button></div>
                 <div className="upcoming-list">
-                  {matches.filter((match) => match.status === "upcoming").slice(0, 6).map((match) => <MatchRow key={match.id} match={match} />)}
+                  {matches.filter((match) => match.status === "upcoming").slice(0, 6).map((match) => <MatchRow key={match.id} match={match} onOpen={() => setSelectedMatch(match)} />)}
                 </div>
               </section>
 
@@ -271,14 +271,14 @@ function App() {
 
 function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favorite: boolean; onFavorite: () => void; onOpen: () => void }) {
   return (
-    <article className="match-card">
+    <article className="match-card match-card-open" role="button" tabIndex={0} onClick={onOpen} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(); } }}>
       <div className="match-card-top"><span className="competition-name">{match.competition}</span><button className={favorite ? "star-button selected" : "star-button"} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="Ajouter aux favoris">★</button></div>
       <div className="teams">
         <div className="team"><span className="team-crest">{match.home.slice(0, 1)}</span><strong>{match.home}</strong></div>
         <div className="score-block">{match.status === "upcoming" ? <span className="versus">VS</span> : <strong>{match.homeScore ?? "–"} <i>:</i> {match.awayScore ?? "–"}</strong>}<small className={match.status === "live" ? "match-time live-time" : "match-time"}>{match.status === "live" && <span className="live-pulse" />}{match.time}</small></div>
         <div className="team"><span className="team-crest">{match.away.slice(0, 1)}</span><strong>{match.away}</strong></div>
       </div>
-      <div className="match-card-bottom"><span>{match.status === "live" ? "● EN COURS" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "PROCHAIN MATCH"}</span><button className="match-open-button" onClick={onOpen}>Centre du match ↗</button></div>
+      <div className="match-card-bottom"><span>{match.status === "live" ? "● EN COURS" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "PROCHAIN MATCH"}</span><span className="match-open-hint">Voir le match ↗</span></div>
     </article>
   );
 }
@@ -286,6 +286,7 @@ function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favo
 function MatchDetails({ match, onClose }: { match: Match; onClose: () => void }) {
   const [details, setDetails] = useState<MatchDetailsData | null>(null);
   const [detailsStatus, setDetailsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [activeSection, setActiveSection] = useState<"resume" | "compositions" | "statistiques" | "evenements">("resume");
   const kickoff = match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("fr-FR", { dateStyle: "full", timeStyle: "short" }) : match.time;
 
   useEffect(() => {
@@ -305,72 +306,105 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
 
   const statisticTypes = [...new Set((details?.statistics ?? []).flatMap((team) => (team.statistics ?? []).map((item) => item.type ?? "")))].filter(Boolean);
   const formatStatistic = (value: string | number | null | undefined) => value === null || value === undefined ? "—" : String(value);
+  const numericStatistic = (value: string | number | null | undefined) => {
+    if (value === null || value === undefined) return null;
+    const found = String(value).replace(",", ".").match(/-?\d+(?:\.\d+)?/);
+    return found ? Number(found[0]) : null;
+  };
   const eventTime = (elapsed?: number | null, extra?: number | null) => elapsed == null ? "—" : `${elapsed}${extra ? "+" + extra : ""}'`;
+  const lineups = details?.lineups ?? [];
+  const getPlayerPosition = (entry: MatchLineup["startXI"] extends (infer T)[] | undefined ? T : never, lineup: MatchDetailsData["lineups"][number], teamIndex: number, playerIndex: number) => {
+    const starters = lineup.startXI ?? [];
+    const grid = entry.player?.grid?.split(":").map(Number);
+    const validGrid = grid && grid.length === 2 && grid.every((value) => Number.isFinite(value) && value > 0);
+    const maxRow = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[0]) || 0));
+    const maxCol = Math.max(1, ...starters.map((player) => Number(player.player?.grid?.split(":")[1]) || 0));
+    if (validGrid) {
+      const rawTop = ((grid[0] - 0.5) / maxRow) * 100;
+      return { top: `${teamIndex === 0 ? 100 - rawTop : rawTop}%`, left: `${((grid[1] - 0.5) / maxCol) * 100}%` };
+    }
+    const pos = (entry.player?.pos ?? "").toUpperCase();
+    const role = pos === "G" ? 0 : pos === "D" ? 1 : pos === "M" ? 2 : 3;
+    const sameRole = starters.filter((player) => (player.player?.pos ?? "").toUpperCase() === pos);
+    const indexInRole = sameRole.indexOf(entry);
+    const rawTop = ((role + 0.5) / 4) * 100;
+    return { top: `${teamIndex === 0 ? 100 - rawTop : rawTop}%`, left: `${((indexInRole + 0.5) / Math.max(1, sameRole.length)) * 100}%` };
+  };
+  const tabs = [
+    { id: "resume" as const, label: "Résumé" },
+    { id: "compositions" as const, label: "Compositions" },
+    { id: "statistiques" as const, label: "Statistiques" },
+    { id: "evenements" as const, label: "Événements" }
+  ];
 
   return <div className="match-modal-backdrop" onClick={onClose} role="presentation">
-    <section className="match-modal" role="dialog" aria-modal="true" aria-label="Détails du match" onClick={(event) => event.stopPropagation()}>
+    <section className="match-modal match-centre-modal" role="dialog" aria-modal="true" aria-label="Centre du match" onClick={(event) => event.stopPropagation()}>
       <button className="modal-close" onClick={onClose} aria-label="Fermer">×</button>
       <span className="modal-competition">{match.competition}</span>
       <div className="modal-status">{match.status === "live" ? "● EN DIRECT" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "À VENIR"}</div>
       <div className="modal-scoreline"><div><span className="modal-crest">{match.home.slice(0,1)}</span><strong>{match.home}</strong></div><b>{match.status === "upcoming" ? "VS" : `${match.homeScore ?? "–"} : ${match.awayScore ?? "–"}`}</b><div><span className="modal-crest">{match.away.slice(0,1)}</span><strong>{match.away}</strong></div></div>
       <div className="modal-kickoff">{kickoff}</div>
-
+      <nav className="match-detail-tabs" aria-label="Rubriques du match">
+        {tabs.map((tab) => <button key={tab.id} className={activeSection === tab.id ? "match-detail-tab active" : "match-detail-tab"} onClick={() => setActiveSection(tab.id)}>{tab.label}</button>)}
+      </nav>
       {detailsStatus === "loading" && <p className="modal-note">Chargement des compositions, statistiques et événements…</p>}
       {detailsStatus === "error" && <p className="modal-note">Impossible de charger les détails pour le moment. Réessaie dans quelques instants.</p>}
       {detailsStatus === "ready" && details && <>
-        <div className="detail-section">
-          <h3>Compositions</h3>
-          {!details.availability.lineups ? <p className="detail-empty">Les compositions ne sont pas encore publiées pour cette rencontre.</p> :
-            <div className="lineup-grid">{details.lineups.map((lineup, index) => {
-              const starters = lineup.startXI ?? [];
-              const positionGroups = ["F", "M", "D", "G"].map((position) => ({
-                position,
-                players: starters.filter((entry) => (entry.player?.pos ?? "").toUpperCase() === position)
-              })).filter((group) => group.players.length > 0);
-              return <div className="lineup-team" key={lineup.team?.name ?? index}>
-                <div className="lineup-team-heading"><strong>{lineup.team?.name ?? "Équipe"}</strong><span>{lineup.formation ?? "Formation"}</span></div>
-                <div className="lineup-pitch">
-                  {positionGroups.map((group) => <div className="lineup-position-row" key={group.position}>
-                    {group.players.map((entry, playerIndex) => <div className="lineup-starter" key={entry.player?.id ?? playerIndex}>
-                      <span className="starter-number">{entry.player?.number ?? "—"}</span>
-                      <span className="starter-name">{entry.player?.name ?? "Joueur"}</span>
-                    </div>)}
-                  </div>)}
-                </div>
-                <div className="lineup-bench">
-                  <span className="lineup-label">Remplaçants · {(lineup.substitutes ?? []).length}</span>
-                  <div className="bench-list">{(lineup.substitutes ?? []).map((entry, playerIndex) => <div className="bench-player" key={entry.player?.id ?? playerIndex}>
-                    <span>{entry.player?.number ?? "—"}</span><strong>{entry.player?.name ?? "Joueur"}</strong><small>{entry.player?.pos ?? ""}</small>
-                  </div>)}</div>
-                </div>
-              </div>;
-            })}</div>}
-        </div>
-        <div className="detail-section">
-          <h3>Statistiques</h3>
+        {(activeSection === "resume" || activeSection === "compositions") && <div className="detail-section">
+          <h3>Compositions · {lineups.map((lineup) => lineup.formation).filter(Boolean).join(" — ")}</h3>
+          {!details.availability.lineups ? <p className="detail-empty">Les compositions ne sont pas encore publiées pour cette rencontre.</p> : <>
+            <div className="single-lineup-pitch">
+              <div className="pitch-team-label pitch-away-label">{lineups[1]?.team?.name ?? match.away} <small>{lineups[1]?.formation ?? ""}</small></div>
+              {lineups.map((lineup, teamIndex) => (lineup.startXI ?? []).map((entry, playerIndex) => {
+                const position = getPlayerPosition(entry, lineup, teamIndex, playerIndex);
+                return <div className={teamIndex === 0 ? "pitch-player pitch-home-player" : "pitch-player pitch-away-player"} key={entry.player?.id ?? `${teamIndex}-${playerIndex}`} style={position}>
+                  <span>{entry.player?.number ?? "—"}</span><small>{entry.player?.name ?? "Joueur"}</small>
+                </div>;
+              }))}
+              <div className="pitch-midline" />
+              <div className="pitch-team-label pitch-home-label">{lineups[0]?.team?.name ?? match.home} <small>{lineups[0]?.formation ?? ""}</small></div>
+            </div>
+            <div className="bench-heading"><h3>Banc des remplaçants</h3><span>{lineups.reduce((total, lineup) => total + (lineup.substitutes?.length ?? 0), 0)} joueurs</span></div>
+            <div className="bench-teams">{lineups.map((lineup, teamIndex) => <div className="bench-team" key={lineup.team?.name ?? teamIndex}>
+              <strong>{lineup.team?.name ?? "Équipe"}</strong>
+              {(lineup.substitutes ?? []).length === 0 ? <p className="detail-empty">Aucun remplaçant renseigné.</p> : (lineup.substitutes ?? []).map((entry, playerIndex) => <div className="bench-player" key={entry.player?.id ?? playerIndex}>
+                <span>{entry.player?.number ?? "—"}</span><strong>{entry.player?.name ?? "Joueur"}</strong><small>{entry.player?.pos ?? ""}</small>
+              </div>)}
+            </div>)}</div>
+          </>}
+        </div>}
+        {(activeSection === "resume" || activeSection === "statistiques") && <div className="detail-section">
+          <h3>Statistiques du match</h3>
           {!details.availability.statistics ? <p className="detail-empty">Les statistiques ne sont pas encore disponibles.</p> :
-            <div className="statistics-table">
-              <div className="statistics-head"><strong>{details.statistics[0]?.team?.name ?? match.home}</strong><strong>Indicateur</strong><strong>{details.statistics[1]?.team?.name ?? match.away}</strong></div>
+            <div className="visual-statistics">
+              <div className="visual-stat-head"><strong>{details.statistics[0]?.team?.name ?? match.home}</strong><strong>{details.statistics[1]?.team?.name ?? match.away}</strong></div>
               {statisticTypes.map((type) => {
                 const homeValue = details.statistics[0]?.statistics?.find((item) => item.type === type)?.value;
                 const awayValue = details.statistics[1]?.statistics?.find((item) => item.type === type)?.value;
-                return <div className="statistics-row" key={type}><span>{formatStatistic(homeValue)}</span><span>{type}</span><span>{formatStatistic(awayValue)}</span></div>;
+                const homeNumber = numericStatistic(homeValue);
+                const awayNumber = numericStatistic(awayValue);
+                const total = (homeNumber ?? 0) + (awayNumber ?? 0);
+                const homeWidth = total > 0 && homeNumber !== null ? (homeNumber / total) * 100 : 50;
+                const awayWidth = total > 0 && awayNumber !== null ? (awayNumber / total) * 100 : 50;
+                return <div className="visual-stat-row" key={type}>
+                  <div className="visual-stat-values"><strong>{formatStatistic(homeValue)}</strong><span>{type}</span><strong>{formatStatistic(awayValue)}</strong></div>
+                  <div className="visual-stat-track"><span className="visual-stat-home" style={{ width: `${homeWidth}%` }} /><span className="visual-stat-away" style={{ width: `${awayWidth}%` }} /></div>
+                </div>;
               })}
             </div>}
-        </div>
-        <div className="detail-section">
-          <h3>Événements</h3>
+        </div>}
+        {(activeSection === "resume" || activeSection === "evenements") && <div className="detail-section">
+          <h3>Chronologie du match</h3>
           {!details.availability.events ? <p className="detail-empty">Aucun événement détaillé disponible pour le moment.</p> :
             <div className="events-list">{details.events.map((event, index) => <div className="event-row" key={index}><time>{eventTime(event.time?.elapsed, event.time?.extra)}</time><strong>{event.type ?? "Événement"} · {event.detail ?? ""}</strong><span>{event.player?.name ?? ""}{event.assist?.name ? ` · Passe : ${event.assist.name}` : ""}</span><small>{event.team?.name ?? ""}</small></div>)}</div>}
-        </div>
+        </div>}
         <p className="detail-attribution">Données fournies par API-Football. Leur disponibilité dépend de la rencontre.</p>
       </>}
     </section>
   </div>;
 }
-
-function MatchRow({ match }: { match: Match }) {
-  return <div className="match-row"><span className="row-competition">{match.competition}</span><strong>{match.home}</strong><span className="row-vs">—</span><strong>{match.away}</strong><span className="row-time">{match.time}</span></div>;
+function MatchRow({ match, onOpen }: { match: Match; onOpen: () => void }) {
+  return <div className="match-row match-row-open" role="button" tabIndex={0} onClick={onOpen} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(); } }}><span className="row-competition">{match.competition}</span><strong>{match.home}</strong><span className="row-vs">—</span><strong>{match.away}</strong><span className="row-time">{match.time}</span></div>;
 }
 
 function formatNewsDate(value: string, language: Language): string {
