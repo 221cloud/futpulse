@@ -62,3 +62,34 @@ export async function fetchApiFootballFixtures(apiKey: string, params: URLSearch
   if (payload.errors && Object.keys(payload.errors as object).length > 0) throw new Error("api_football_provider_error");
   return normalizeFixtures(payload.response ?? []);
 }
+
+export interface FixtureDetails {
+  lineups: unknown[];
+  statistics: unknown[];
+  events: unknown[];
+  availability: { lineups: boolean; statistics: boolean; events: boolean };
+}
+async function fetchFixtureDetailResource(apiKey: string, endpoint: string, fixtureId: string): Promise<unknown[]> {
+  const url = new URL(`https://v3.football.api-sports.io/${endpoint}`);
+  url.searchParams.set("fixture", fixtureId);
+  const response = await fetch(url.toString(), { headers: { "x-apisports-key": apiKey } });
+  if (!response.ok) return [];
+  const payload = await response.json() as { errors?: unknown; response?: unknown[] };
+  if (payload.errors && Object.keys(payload.errors as object).length > 0) return [];
+  return payload.response ?? [];
+}
+export async function fetchApiFootballFixtureDetails(apiKey: string, fixtureId: string): Promise<FixtureDetails> {
+  const [lineups, statistics, events] = await Promise.all([
+    fetchFixtureDetailResource(apiKey, "fixtures/lineups", fixtureId),
+    fetchFixtureDetailResource(apiKey, "fixtures/statistics", fixtureId),
+    fetchFixtureDetailResource(apiKey, "fixtures/events", fixtureId)
+  ]);
+  return {
+    lineups, statistics, events,
+    availability: {
+      lineups: lineups.length > 0,
+      statistics: statistics.length > 0,
+      events: events.length > 0
+    }
+  };
+}
