@@ -11,8 +11,8 @@ CREATE TABLE IF NOT EXISTS fp_countries (
   name TEXT NOT NULL,
   code TEXT,
   flag_url TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(code)
 );
 
@@ -23,8 +23,8 @@ CREATE TABLE IF NOT EXISTS fp_competitions (
   competition_type TEXT,
   logo_url TEXT,
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_seasons (
@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS fp_seasons (
   end_date TEXT,
   is_current INTEGER NOT NULL DEFAULT 0 CHECK (is_current IN (0,1)),
   coverage_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(coverage_json)),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(competition_id, season_label)
 );
 
@@ -50,8 +50,8 @@ CREATE TABLE IF NOT EXISTS fp_teams (
   national INTEGER NOT NULL DEFAULT 0 CHECK (national IN (0,1)),
   logo_url TEXT,
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_players (
@@ -67,8 +67,8 @@ CREATE TABLE IF NOT EXISTS fp_players (
   position TEXT,
   preferred_foot TEXT,
   is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0,1)),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_coaches (
@@ -79,8 +79,8 @@ CREATE TABLE IF NOT EXISTS fp_coaches (
   birth_date TEXT,
   nationality TEXT,
   photo_url TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_venues (
@@ -92,8 +92,8 @@ CREATE TABLE IF NOT EXISTS fp_venues (
   capacity INTEGER,
   surface TEXT,
   image_url TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_team_memberships (
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS fp_team_memberships (
   started_on TEXT,
   ended_on TEXT,
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   -- Membership periods are historical records; duplicate prevention is handled by sync logic.
 );
 
@@ -119,7 +119,7 @@ CREATE TABLE IF NOT EXISTS fp_coach_assignments (
   started_on TEXT,
   ended_on TEXT,
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
   -- Assignment periods are historical records; duplicate prevention is handled by sync logic.
 );
 
@@ -151,8 +151,8 @@ CREATE TABLE IF NOT EXISTS fp_fixtures (
   is_neutral_venue INTEGER NOT NULL DEFAULT 0 CHECK (is_neutral_venue IN (0,1)),
   postponed INTEGER NOT NULL DEFAULT 0 CHECK (postponed IN (0,1)),
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   CHECK(home_team_id <> away_team_id)
 );
 
@@ -169,7 +169,7 @@ CREATE TABLE IF NOT EXISTS fp_fixture_events (
   detail TEXT,
   comments TEXT,
   provider_event_id TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(fixture_id, event_order)
 );
 
@@ -179,7 +179,7 @@ CREATE TABLE IF NOT EXISTS fp_fixture_lineups (
   team_id TEXT NOT NULL REFERENCES fp_teams(id) ON DELETE RESTRICT,
   coach_id TEXT REFERENCES fp_coaches(id) ON DELETE SET NULL,
   formation TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(fixture_id, team_id)
 );
 
@@ -193,7 +193,7 @@ CREATE TABLE IF NOT EXISTS fp_fixture_lineup_players (
   grid_position TEXT,
   is_starting INTEGER NOT NULL DEFAULT 0 CHECK (is_starting IN (0,1)),
   is_captain INTEGER NOT NULL DEFAULT 0 CHECK (is_captain IN (0,1)),
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   CHECK(player_id IS NOT NULL OR player_name_snapshot IS NOT NULL)
 );
 
@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS fp_standings_snapshots (
   group_name TEXT,
   captured_at TEXT NOT NULL,
   provider_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_standing_rows (
@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS fp_standing_rows (
   goal_difference INTEGER,
   form TEXT,
   description TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(snapshot_id, team_id)
 );
 
@@ -243,8 +243,8 @@ CREATE TABLE IF NOT EXISTS fp_player_season_stats (
   rating REAL,
   stats_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(stats_json)),
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(player_id, team_id, competition_id, season_id)
 );
 
@@ -254,8 +254,8 @@ CREATE TABLE IF NOT EXISTS fp_fixture_team_stats (
   team_id TEXT NOT NULL REFERENCES fp_teams(id) ON DELETE RESTRICT,
   stats_json TEXT NOT NULL CHECK (json_valid(stats_json)),
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(fixture_id, team_id)
 );
 
@@ -269,8 +269,8 @@ CREATE TABLE IF NOT EXISTS fp_fixture_player_stats (
   rating REAL,
   stats_json TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(stats_json)),
   source_updated_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   CHECK(player_id IS NOT NULL OR player_name_snapshot IS NOT NULL)
 );
 
@@ -287,8 +287,8 @@ CREATE TABLE IF NOT EXISTS fp_provider_entity_mappings (
   canonical_entity_id TEXT NOT NULL,
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
   last_seen_at TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(provider_code, entity_type, provider_entity_id, scope_key)
 );
 
@@ -307,7 +307,7 @@ CREATE TABLE IF NOT EXISTS fp_provider_sync_state (
   records_updated INTEGER NOT NULL DEFAULT 0,
   error_code TEXT,
   error_message TEXT,
-  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(provider_code, endpoint, scope_key)
 );
 
@@ -322,7 +322,7 @@ CREATE TABLE IF NOT EXISTS fp_provider_raw_payloads (
   content_hash TEXT,
   related_entity_type TEXT,
   related_entity_id TEXT,
-  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS fp_data_conflicts (
@@ -334,7 +334,7 @@ CREATE TABLE IF NOT EXISTS fp_data_conflicts (
   status TEXT NOT NULL DEFAULT 'open'
     CHECK (status IN ('open','resolved','ignored')),
   resolution_note TEXT,
-  detected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  detected_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   resolved_at TEXT
 );
 
