@@ -398,3 +398,11 @@
  .real-pitch-team-label{left:6px;right:6px;font-size:8px}
  .real-pitch-team-label strong{font-size:8px}
 }
+
+.real-pitch-area-away:after,.real-pitch-area-home:after{
+ content:"";position:absolute;left:50%;width:76px;height:76px;transform:translateX(-50%);
+ border:1px solid rgba(26,75,49,.6);border-radius:50%;
+}
+.real-pitch-area-away:after{bottom:-39px;clip-path:inset(50% 0 0 0)}
+.real-pitch-area-home:after{top:-39px;clip-path:inset(0 0 50% 0)}
+.real-pitch-team-label{display:none}
