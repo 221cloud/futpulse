@@ -62,7 +62,7 @@ const navItems: { id: Tab; icon: string }[] = [
 
 function App() {
   const [language, setLanguage] = useState<Language>("FR");
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>(() => new URLSearchParams(window.location.search).has("resetToken") ? "profile" : "home");
   const [query, setQuery] = useState("");
   const [favorites, setFavorites] = useState<string[]>(["PSG", "Sénégal"]);
   const [apiMatches, setApiMatches] = useState<Match[]>([]);
