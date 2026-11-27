@@ -15,6 +15,7 @@ type Match = {
   time: string;
   status: "live" | "upcoming" | "finished";
   featured?: boolean;
+  kickoffAt?: string | null;
 };
 
 const demoMatches: Match[] = [
@@ -64,8 +65,15 @@ function App() {
   const [favorites, setFavorites] = useState<string[]>(["PSG", "Sénégal"]);
   const [apiMatches, setApiMatches] = useState<Match[]>([]);
   const [dataMode, setDataMode] = useState<"loading" | "live" | "demo">("loading");
+  const [statusFilter, setStatusFilter] = useState<"all" | "live" | "upcoming" | "finished">("all");
+  const [competitionFilter, setCompetitionFilter] = useState("all");
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const t = copy[language];
-  const matches = apiMatches.length > 0 ? apiMatches : demoMatches;
+  const sourceMatches = apiMatches.length > 0 ? apiMatches : demoMatches;
+  const matches = useMemo(() => [...sourceMatches].sort((a, b) => {
+    const rank = { live: 0, upcoming: 1, finished: 2 };
+    return rank[a.status] - rank[b.status];
+  }), [sourceMatches]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,8 +100,14 @@ function App() {
               ? new Date(fixture.kickoffAt).toLocaleTimeString(language === "FR" ? "fr-FR" : "en-GB", { hour: "2-digit", minute: "2-digit" })
               : "Horaire à confirmer",
           status: fixture.status === "live" ? "live" as const : fixture.status === "finished" ? "finished" as const : "upcoming" as const,
-          featured: index < 2
+          featured: false,
+          kickoffAt: fixture.kickoffAt
         }));
+        formatted.sort((a, b) => {
+          const rank = { live: 0, upcoming: 1, finished: 2 };
+          return rank[a.status] - rank[b.status];
+        });
+        formatted.forEach((match, index) => { match.featured = index < 2; });
         setApiMatches(formatted);
         setDataMode(formatted.length > 0 ? "live" : "demo");
       })
@@ -110,9 +124,13 @@ function App() {
     const q = query.trim().toLowerCase();
     if (!q) return matches;
     return matches.filter((match) =>
+      (statusFilter === "all" || match.status === statusFilter) &&
+      (competitionFilter === "all" || match.competition === competitionFilter) &&
       [match.competition, match.home, match.away].some((value) => value.toLowerCase().includes(q))
     );
-  }, [query, matches]);
+  }, [query, matches, statusFilter, competitionFilter]);
+
+  const competitions = useMemo(() => [...new Set(matches.map((match) => match.competition))].sort(), [matches]);
 
   const toggleFavorite = (name: string) => {
     setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
@@ -174,7 +192,7 @@ function App() {
               <section className="section-block">
                 <div className="section-heading"><div><div className="eyebrow"><span className="live-pulse" /> {t.live}</div><h2>{t.today}</h2></div><button className="text-button" onClick={() => setTab("matches")}>{t.seeAll} <span>↗</span></button></div>
                 <div className="match-grid">
-                  {matches.filter((match) => match.featured).map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} />)}
+                  {matches.filter((match) => match.featured).map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} onOpen={() => setSelectedMatch(match)} />)}
                 </div>
               </section>
 
@@ -192,7 +210,16 @@ function App() {
           {tab === "matches" && (
             <section className="page-section">
               <div className="page-heading"><div className="eyebrow">THE PITCH</div><h1>{t.allMatches}</h1><p>{dataMode === "live" ? "Rencontres du jour fournies par API-Football." : t.demoText}</p></div>
-              <div className="match-grid">{filteredMatches.map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} />)}</div>
+              <div className="match-filters">
+                <div className="filter-tabs" role="group" aria-label="Filtrer par statut">
+                  {(["all", "live", "upcoming", "finished"] as const).map((status) => <button key={status} className={statusFilter === status ? "filter-tab active" : "filter-tab"} onClick={() => setStatusFilter(status)}>{status === "all" ? "Tous" : status === "live" ? "En direct" : status === "upcoming" ? "À venir" : "Terminés"}</button>)}
+                </div>
+                <select className="competition-select" value={competitionFilter} onChange={(event) => setCompetitionFilter(event.target.value)} aria-label="Filtrer par compétition">
+                  <option value="all">Toutes les compétitions</option>
+                  {competitions.map((competition) => <option key={competition} value={competition}>{competition}</option>)}
+                </select>
+              </div>
+              <div className="match-grid">{filteredMatches.map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} onOpen={() => setSelectedMatch(match)} />)}</div>
               {filteredMatches.length === 0 && <div className="empty-state">Aucun résultat pour « {query} ».</div>}
             </section>
           )}
@@ -202,7 +229,7 @@ function App() {
           {tab === "favorites" && (
             <section className="page-section"><div className="page-heading"><div className="eyebrow">YOUR GAME</div><h1>{t.favorites}</h1><p>{t.favoriteHint}</p></div>
               {favorites.length ? <div className="favorite-chips">{favorites.map((name) => <button key={name} className="favorite-chip" onClick={() => toggleFavorite(name)}>{name}<span>×</span></button>)}</div> : <div className="empty-state">{t.empty}</div>}
-              <div className="section-heading compact-heading"><h2>{t.today}</h2></div><div className="match-grid">{matches.map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} />)}</div>
+              <div className="section-heading compact-heading"><h2>{t.today}</h2></div><div className="match-grid">{matches.map((match) => <MatchCard key={match.id} match={match} favorite={favorites.includes(match.home)} onFavorite={() => toggleFavorite(match.home)} onOpen={() => setSelectedMatch(match)} />)}</div>
             </section>
           )}
 
@@ -212,6 +239,8 @@ function App() {
         </main>
       </div>
 
+      {selectedMatch && <MatchDetails match={selectedMatch} onClose={() => setSelectedMatch(null)} />}
+
       <nav className="mobile-nav">
         {navItems.map((item) => <button key={item.id} className={tab === item.id ? "mobile-nav-item active" : "mobile-nav-item"} onClick={() => setTab(item.id)}><span>{item.icon}</span><small>{t[item.id]}</small></button>)}
       </nav>
@@ -219,18 +248,32 @@ function App() {
   );
 }
 
-function MatchCard({ match, favorite, onFavorite }: { match: Match; favorite: boolean; onFavorite: () => void }) {
+function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favorite: boolean; onFavorite: () => void; onOpen: () => void }) {
   return (
     <article className="match-card">
-      <div className="match-card-top"><span>{match.competition}</span><button className={favorite ? "star-button selected" : "star-button"} onClick={onFavorite} aria-label="Ajouter aux favoris">★</button></div>
+      <div className="match-card-top"><span>{match.competition}</span><button className={favorite ? "star-button selected" : "star-button"} onClick={(event) => { event.stopPropagation(); onFavorite(); }} aria-label="Ajouter aux favoris">★</button></div>
       <div className="teams">
         <div className="team"><span className="team-crest">{match.home.slice(0, 1)}</span><strong>{match.home}</strong></div>
         <div className="score-block">{match.status === "upcoming" ? <span className="versus">VS</span> : <strong>{match.homeScore} <i>:</i> {match.awayScore}</strong>}<small className={match.status === "live" ? "match-time live-time" : "match-time"}>{match.status === "live" && <span className="live-pulse" />}{match.time}</small></div>
         <div className="team"><span className="team-crest">{match.away.slice(0, 1)}</span><strong>{match.away}</strong></div>
       </div>
-      <div className="match-card-bottom"><span>{match.status === "live" ? "● EN COURS" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "PROCHAIN MATCH"}</span><span>Centre du match ↗</span></div>
+      <div className="match-card-bottom"><span>{match.status === "live" ? "● EN COURS" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "PROCHAIN MATCH"}</span><button className="match-open-button" onClick={onOpen}>Centre du match ↗</button></div>
     </article>
   );
+}
+
+function MatchDetails({ match, onClose }: { match: Match; onClose: () => void }) {
+  const kickoff = match.kickoffAt ? new Date(match.kickoffAt).toLocaleString("fr-FR", { dateStyle: "full", timeStyle: "short" }) : match.time;
+  return <div className="match-modal-backdrop" onClick={onClose} role="presentation">
+    <section className="match-modal" role="dialog" aria-modal="true" aria-label="Détails du match" onClick={(event) => event.stopPropagation()}>
+      <button className="modal-close" onClick={onClose} aria-label="Fermer">×</button>
+      <span className="modal-competition">{match.competition}</span>
+      <div className="modal-status">{match.status === "live" ? "● EN DIRECT" : match.status === "finished" ? "RENCONTRE TERMINÉE" : "À VENIR"}</div>
+      <div className="modal-scoreline"><div><span className="modal-crest">{match.home.slice(0,1)}</span><strong>{match.home}</strong></div><b>{match.status === "upcoming" ? "VS" : `${match.homeScore ?? "–"} : ${match.awayScore ?? "–"}`}</b><div><span className="modal-crest">{match.away.slice(0,1)}</span><strong>{match.away}</strong></div></div>
+      <div className="modal-kickoff">{kickoff}</div>
+      <p className="modal-note">Les compositions, statistiques et événements détaillés seront disponibles dans une prochaine version du centre de match.</p>
+    </section>
+  </div>;
 }
 
 function MatchRow({ match }: { match: Match }) {
