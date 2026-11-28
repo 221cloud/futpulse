@@ -595,9 +595,14 @@ function MatchRow({ match, onOpen }: { match: Match; onOpen: () => void }) {
 
 function formatNewsDate(value: string, language: Language): string {
   if (!value) return "";
-  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value;
+  const trimmed = value.trim();
+  const normalized = /^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}(:\\d{2})?$/.test(trimmed)
+    ? trimmed.replace(" ", "T")
+    : /^\\d{4}-\\d{2}-\\d{2}$/.test(trimmed)
+      ? `${trimmed}T00:00:00`
+      : trimmed;
   const date = new Date(normalized);
-  if (Number.isNaN(date.getTime())) return value;
+  if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleDateString(language === "FR" ? "fr-FR" : "en-GB", {
     day: "numeric", month: "short", year: "numeric"
   });
