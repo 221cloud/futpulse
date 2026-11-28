@@ -51,12 +51,25 @@ function clearCookie(): string {
   return "futpulse_session=; HttpOnly; Secure; SameSite=None; Path=/; Max-Age=0";
 }
 async function sendEmail(env: AuthEnv, to: string, subject: string, html: string): Promise<boolean> {
-  if (!env.RESEND_API_KEY || !env.RESEND_FROM) return false;
+  if (!env.RESEND_API_KEY || !env.RESEND_FROM) {
+    console.error("Resend: configuration manquante");
+    return false;
+  }
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, "content-type": "application/json" },
+    headers: {
+      authorization: `Bearer ${env.RESEND_API_KEY}`,
+      "content-type": "application/json"
+    },
     body: JSON.stringify({ from: env.RESEND_FROM, to: [to], subject, html })
   });
+
+  if (!response.ok) {
+    const error = await response.text();
+    console.error("Resend erreur:", response.status, error);
+  }
+
   return response.ok;
 }
 function emailHtml(title: string, message: string, link: string): string {
