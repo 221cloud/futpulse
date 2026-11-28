@@ -1,4 +1,5 @@
 import type { FootballFixturesResponse } from "../types/football";
+import type { MatchDetailsData } from "./footballDetailsApi";
 
 const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
 
@@ -31,4 +32,13 @@ export async function getFootballFixtures(date?: string): Promise<FootballFixtur
   }
 
   return response.json() as Promise<FootballFixturesResponse>;
+}
+
+export async function getManualFixtureEvents(fixtureId: string): Promise<MatchDetailsData> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/football/manual-fixtures/${encodeURIComponent(fixtureId)}/events`, {
+    headers: { Accept: "application/json" }
+  });
+  const payload = await response.json().catch(() => ({})) as { data?: MatchDetailsData; error?: string };
+  if (!response.ok || !payload.data) throw new FootballApiError(payload.error ?? "Impossible de récupérer les événements du match.", response.status);
+  return payload.data;
 }
