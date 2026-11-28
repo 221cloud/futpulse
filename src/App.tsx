@@ -498,7 +498,6 @@ function PostComments({ post, language }: { post: FutPulsePost; language: Langua
   </div>;
 }
 
-
 function PostReport({ post, language }: { post: FutPulsePost; language: Language }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<FutPulseReportReason>("inappropriate_content");
@@ -673,6 +672,10 @@ function CommunityDiscoveryPage({ language }: { language: Language }) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | FutPulsePostCategory>("all");
+  const [sortOrder, setSortOrder] = useState<"newest" | "oldest">("newest");
+  const [memberSearch, setMemberSearch] = useState("");
   const fr = language === "FR";
 
   const refresh = async () => {
@@ -714,11 +717,24 @@ function CommunityDiscoveryPage({ language }: { language: Language }) {
     }
   };
 
+  const filteredPosts = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase();
+    return posts
+      .filter((post) => categoryFilter === "all" || post.category === categoryFilter)
+      .filter((post) => !term || [post.authorName, post.content, post.matchLabel ?? ""].some((value) => value.toLocaleLowerCase().includes(term)))
+      .sort((a, b) => sortOrder === "newest" ? b.createdAt - a.createdAt : a.createdAt - b.createdAt);
+  }, [posts, search, categoryFilter, sortOrder]);
+
+  const filteredMembers = useMemo(() => {
+    const term = memberSearch.trim().toLocaleLowerCase();
+    return members.filter((member) => !term || [member.displayName, member.bio].some((value) => value.toLocaleLowerCase().includes(term)));
+  }, [members, memberSearch]);
+
   return <section className="page-section community-page">
     <div className="page-heading">
       <div className="eyebrow">FUTPULSE COMMUNITY</div>
       <h1>{fr ? "Communauté" : "Community"}</h1>
-      <p>{fr ? "Découvre les supporters, leurs profils publics et leurs publications." : "Discover football fans, public profiles and their posts."}</p>
+      <p>{fr ? "Découvre les supporters, recherche des membres et explore leurs publications." : "Discover supporters, search for members and explore their posts."}</p>
     </div>
     {message && <p className="account-message" role="status">{message}</p>}
     {status === "loading" && <p className="community-status">{fr ? "Chargement des membres…" : "Loading members…"}</p>}
@@ -727,9 +743,22 @@ function CommunityDiscoveryPage({ language }: { language: Language }) {
       <button className="account-secondary" onClick={() => { setStatus("loading"); void refresh(); }}>{fr ? "Réessayer" : "Retry"}</button>
     </div>}
     <div className="section-heading compact-heading"><div><div className="eyebrow">{fr ? "LE FIL PUBLIC" : "PUBLIC FEED"}</div><h2>{fr ? "Publications récentes" : "Recent posts"}</h2></div></div>
-    {status === "ready" && posts.length === 0 && <div className="empty-state">{fr ? "Aucune publication publique pour le moment." : "No public posts yet."}</div>}
+    <div className="match-filters community-filters">
+      <input className="profile-edit-input" type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={fr ? "Rechercher une publication, un auteur, un match…" : "Search posts, authors or matches…"} aria-label={fr ? "Rechercher dans les publications" : "Search posts"} />
+      <select className="competition-select" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as "all" | FutPulsePostCategory)} aria-label={fr ? "Filtrer par catégorie" : "Filter by category"}>
+        <option value="all">{fr ? "Toutes les catégories" : "All categories"}</option>
+        <option value="news">{fr ? "Actualités" : "News"}</option>
+        <option value="analysis">{fr ? "Analyses" : "Analysis"}</option>
+        <option value="opinion">{fr ? "Opinions" : "Opinions"}</option>
+      </select>
+      <select className="competition-select" value={sortOrder} onChange={(event) => setSortOrder(event.target.value as "newest" | "oldest")} aria-label={fr ? "Trier les publications" : "Sort posts"}>
+        <option value="newest">{fr ? "Plus récentes" : "Newest first"}</option>
+        <option value="oldest">{fr ? "Plus anciennes" : "Oldest first"}</option>
+      </select>
+    </div>
+    {status === "ready" && filteredPosts.length === 0 && <div className="empty-state">{posts.length === 0 ? (fr ? "Aucune publication publique pour le moment." : "No public posts yet.") : (fr ? "Aucune publication ne correspond à ta recherche ou à ce filtre." : "No posts match your search or filter.")}</div>}
     <div className="community-post-list">
-      {posts.map((post) => <article className="community-post" key={post.id}>
+      {filteredPosts.map((post) => <article className="community-post" key={post.id}>
         <div className="community-post-head">
           <div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0, 2).toUpperCase()}</div>
           <div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div>
@@ -743,9 +772,12 @@ function CommunityDiscoveryPage({ language }: { language: Language }) {
       </article>)}
     </div>
     <div className="section-heading compact-heading"><div><div className="eyebrow">{fr ? "MEMBRES" : "MEMBERS"}</div><h2>{fr ? "Découvrir les supporters" : "Discover members"}</h2></div></div>
-    {status === "ready" && members.length === 0 && <div className="empty-state">{fr ? "Aucun profil public pour le moment." : "No public profiles yet."}</div>}
+    <div className="match-filters community-filters">
+      <input className="profile-edit-input" type="search" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} placeholder={fr ? "Rechercher un membre…" : "Search members…"} aria-label={fr ? "Rechercher un membre" : "Search members"} />
+    </div>
+    {status === "ready" && filteredMembers.length === 0 && <div className="empty-state">{members.length === 0 ? (fr ? "Aucun profil public pour le moment." : "No public profiles yet.") : (fr ? "Aucun membre ne correspond à ta recherche." : "No members match your search.")}</div>}
     <div className="community-post-list">
-      {members.map((member) => <article className="community-post" key={member.id}>
+      {filteredMembers.map((member) => <article className="community-post" key={member.id}>
         <div className="community-post-head">
           <div className="community-post-avatar">{member.avatarData ? <img src={member.avatarData} alt="" /> : member.displayName.slice(0, 2).toUpperCase()}</div>
           <div><strong>{member.displayName}</strong><small>{member.followerCount} {fr ? "abonné(s)" : "followers"} · {member.postCount} {fr ? "publication(s)" : "posts"}</small></div>
@@ -997,8 +1029,7 @@ function AdminDashboard({ language }: { language: Language }) {
           { label: fr ? "Utilisateurs" : "Users", value: stats.users },
           { label: fr ? "Profils publics" : "Public profiles", value: stats.publicProfiles },
           { label: fr ? "Publications" : "Posts", value: stats.posts },
-          { label: "J’aime", value: stats.likes },
-          { label: fr ? "Commentaires" : "Comments", value: stats.comments },
+          { label: "J’aime", value: stats.likes },          { label: fr ? "Commentaires" : "Comments", value: stats.comments },
           { label: fr ? "Abonnements" : "Follows", value: stats.follows }
         ].map((item) => <article className="stats-card" key={item.label}><small>{item.label}</small><strong>{item.value.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></article>)}
       </div>
