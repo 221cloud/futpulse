@@ -90,7 +90,7 @@ async function currentUser(request: Request, db: D1Database): Promise<{ id: stri
   if (!raw) return null;
   const tokenHash = await digest(raw);
   const now = Math.floor(Date.now() / 1000);
-  return db.prepare("SELECT users.id, users.email, users.display_name, users.email_verified_at FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ?").bind(tokenHash, now).first();
+  return db.prepare("SELECT users.id, users.email, users.display_name, users.email_verified_at, users.avatar_data FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ?").bind(tokenHash, now).first();
 }
 export async function handleAuth(request: Request, env: AuthEnv, origin?: string): Promise<Response | null> {
   const url = new URL(request.url);
@@ -111,7 +111,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
   }
   if (request.method === "GET" && route === "me") {
     const user = await currentUser(request, db);
-    return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at) } : null }, 200, origin);
+    return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null } : null }, 200, origin);
   }
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405, origin);
   const body = await readBody(request);
@@ -133,13 +133,27 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const sessionToken = randomToken();
     const sessionExpires = now + 60 * 60 * 24 * 30;
     await db.prepare("INSERT INTO sessions (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),id,await digest(sessionToken),sessionExpires,now).run();
-    return reply({ user: { id, email, displayName, emailVerified: false } }, 201, origin, cookie(sessionToken,60*60*24*30));
+    return reply({ user: { id, email, displayName, emailVerified: false, avatarData: null } }, 201, origin, cookie(sessionToken,60*60*24*30));
+  }
+
+  if (route === "profile") {
+    const user = await currentUser(request, db);
+    if (!user) return reply({ error: "not_authenticated" }, 401, origin);
+    const displayName = typeof body.displayName === "string" ? body.displayName.trim() : "";
+    const avatarData = typeof body.avatarData === "string" ? body.avatarData : "";
+    if (displayName.length < 2 || displayName.length > 70) return reply({ error: "invalid_display_name" }, 400, origin);
+    if (avatarData && (!/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/.test(avatarData) || avatarData.length > 200000)) {
+      return reply({ error: avatarData.length > 200000 ? "avatar_too_large" : "invalid_avatar" }, 400, origin);
+    }
+    await db.prepare("UPDATE users SET display_name = ?, avatar_data = ?, updated_at = ? WHERE id = ?").bind(displayName, avatarData || null, now, user.id).run();
+    const updated = await currentUser(request, db);
+    return reply({ user: updated ? { id: updated.id, email: updated.email, displayName: updated.display_name, emailVerified: Boolean(updated.email_verified_at), avatarData: updated.avatar_data ?? null } : null }, 200, origin);
   }
 
   if (route === "login") {
     const email = normalizedEmail(body.email);
     const password = typeof body.password === "string" ? body.password : "";
-    const user = await db.prepare("SELECT id,email,display_name,password_hash,password_salt,email_verified_at FROM users WHERE email = ?").bind(email).first<{ id: string; email: string; display_name: string; password_hash: string; password_salt: string; email_verified_at: number | null }>();
+    const user = await db.prepare("SELECT id,email,display_name,password_hash,password_salt,email_verified_at,avatar_data FROM users WHERE email = ?").bind(email).first<{ id: string; email: string; display_name: string; password_hash: string; password_salt: string; email_verified_at: number | null; avatar_data: string | null }>();
     const candidateHash = user ? await hashPassword(password, user.password_salt) : "";
     if (!user || !constantTimeEqual(candidateHash, user.password_hash)) {
       return reply({ error: "invalid_credentials" }, 401, origin);
@@ -147,7 +161,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const token = randomToken();
     const expires = now + 60 * 60 * 24 * 30;
     await db.prepare("INSERT INTO sessions (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),user.id,await digest(token),expires,now).run();
-    return reply({ user: { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at) } }, 200, origin, cookie(token,60*60*24*30));
+    return reply({ user: { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null } }, 200, origin, cookie(token,60*60*24*30));
   }
 
   if (route === "logout") {
