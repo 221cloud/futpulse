@@ -118,11 +118,42 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!/^[0-9a-f-]{36}$/i.test(userId)) return reply({ error: "profile_not_found" }, 404, origin);
     const profile = await db.prepare("SELECT id, display_name, avatar_data, bio, created_at FROM users WHERE id = ? AND profile_public = 1").bind(userId).first<{ id: string; display_name: string; avatar_data: string | null; bio: string | null; created_at: number }>();
     if (!profile) return reply({ error: "profile_not_found" }, 404, origin);
-    return reply({ profile: { id: profile.id, displayName: profile.display_name, avatarData: profile.avatar_data ?? null, bio: profile.bio ?? "", createdAt: profile.created_at } }, 200, origin);
+    const [followers, following, viewer] = await Promise.all([
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE followed_id = ?").bind(userId).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE follower_id = ?").bind(userId).first<{ count: number }>(),
+      currentUser(request, db)
+    ]);
+    let isFollowing = false;
+    if (viewer && viewer.id !== userId) {
+      const relation = await db.prepare("SELECT follower_id FROM user_follows WHERE follower_id = ? AND followed_id = ?").bind(viewer.id, userId).first<{ follower_id: string }>();
+      isFollowing = Boolean(relation);
+    }
+    return reply({ profile: { id: profile.id, displayName: profile.display_name, avatarData: profile.avatar_data ?? null, bio: profile.bio ?? "", createdAt: profile.created_at, followerCount: followers?.count ?? 0, followingCount: following?.count ?? 0, isFollowing } }, 200, origin);
   }
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405, origin);
   const body = await readBody(request);
   if (!body) return reply({ error: "invalid_json" }, 400, origin);
+
+  if (route === "follow" || route === "unfollow") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const targetId = typeof body.userId === "string" ? body.userId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(targetId)) return reply({ error: "profile_not_found" }, 404, origin);
+    if (viewer.id === targetId) return reply({ error: "cannot_follow_self" }, 400, origin);
+    if (route === "follow") {
+      const target = await db.prepare("SELECT id FROM users WHERE id = ? AND profile_public = 1").bind(targetId).first<{ id: string }>();
+      if (!target) return reply({ error: "profile_not_found" }, 404, origin);
+      await db.prepare("INSERT OR IGNORE INTO user_follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)").bind(viewer.id, targetId, now).run();
+    } else {
+      await db.prepare("DELETE FROM user_follows WHERE follower_id = ? AND followed_id = ?").bind(viewer.id, targetId).run();
+    }
+    const [followers, following, relation] = await Promise.all([
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE followed_id = ?").bind(targetId).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE follower_id = ?").bind(targetId).first<{ count: number }>(),
+      db.prepare("SELECT follower_id FROM user_follows WHERE follower_id = ? AND followed_id = ?").bind(viewer.id, targetId).first<{ follower_id: string }>()
+    ]);
+    return reply({ isFollowing: Boolean(relation), followerCount: followers?.count ?? 0, followingCount: following?.count ?? 0 }, 200, origin);
+  }
 
   if (route === "register") {
     const email = normalizedEmail(body.email);
@@ -156,6 +187,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
       return reply({ error: avatarData.length > 200000 ? "avatar_too_large" : "invalid_avatar" }, 400, origin);
     }
     await db.prepare("UPDATE users SET display_name = ?, avatar_data = ?, bio = ?, profile_public = ?, updated_at = ? WHERE id = ?").bind(displayName, avatarData || null, bio, profilePublic ? 1 : 0, now, user.id).run();
+    if (!profilePublic) await db.prepare("DELETE FROM user_follows WHERE followed_id = ?").bind(user.id).run();
     const updated = await currentUser(request, db);
     return reply({ user: updated ? { id: updated.id, email: updated.email, displayName: updated.display_name, emailVerified: Boolean(updated.email_verified_at), avatarData: updated.avatar_data ?? null, bio: updated.bio ?? "", profilePublic: Boolean(updated.profile_public), createdAt: updated.created_at } : null }, 200, origin);
   }
