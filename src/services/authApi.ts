@@ -186,6 +186,33 @@ export async function getMyStats(): Promise<FutPulseStats> {
   return result.stats;
 }
 
+export type FutPulseReportReason = "spam" | "harassment" | "hate_speech" | "false_information" | "inappropriate_content" | "other";
+export interface FutPulseModerationReport {
+  id: string;
+  postId: string;
+  reporterId: string;
+  reason: FutPulseReportReason;
+  description: string | null;
+  status: "pending" | "reviewed" | "dismissed";
+  createdAt: number;
+  reviewedAt: number | null;
+  reviewedBy: string | null;
+  postContent: string;
+  postAuthorId: string;
+  postAuthorName: string;
+  reporterName: string;
+}
+export async function reportCommunityPost(postId: string, reason: FutPulseReportReason, description = ""): Promise<void> {
+  await request("posts/report", { postId, reason, description });
+}
+export async function getAdminReports(): Promise<FutPulseModerationReport[]> {
+  const result = await request<{ reports: FutPulseModerationReport[] }>("admin/reports");
+  return result.reports ?? [];
+}
+export async function reviewAdminReport(reportId: string, action: "dismiss" | "delete_post"): Promise<void> {
+  await request("admin/reports/review", { reportId, action });
+}
+
 export interface FutPulseAdminStats {
   users: number;
   publicProfiles: number;
