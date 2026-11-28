@@ -526,3 +526,27 @@
 .community-comment-form>div{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .community-comment-form small{color:#718394;font-size:8px}
 .community-comment-form .account-submit{min-height:32px;padding:7px 12px;font-size:9px}
+
+/* In-app notifications */
+.header-actions{position:relative}
+.notification-center{position:relative}
+.notification-bell{position:relative;display:grid;place-items:center;width:36px;height:36px;border:1px solid #2a3947;border-radius:50%;background:#101b25;color:#dce7ee;font-size:19px;cursor:pointer}
+.notification-bell>b{position:absolute;top:-5px;right:-6px;min-width:17px;height:17px;padding:0 4px;display:grid;place-items:center;border-radius:10px;background:#39e58c;color:#062315;font-size:8px;font-weight:900}
+.notification-panel{position:absolute;z-index:50;top:calc(100% + 12px);right:0;width:min(360px,calc(100vw - 28px));max-height:430px;overflow:auto;border:1px solid #2a3947;border-radius:10px;background:#0d151e;box-shadow:0 16px 42px rgba(0,0,0,.42)}
+.notification-panel-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:14px 15px;border-bottom:1px solid rgba(255,255,255,.07);background:#0d151e}
+.notification-panel-head strong{color:#f0f5f8;font-size:12px}
+.notification-panel-head button{border:0;background:transparent;color:#39e58c;font-size:9px;font-weight:750;cursor:pointer}
+.notification-empty{padding:18px 15px;color:#8293a2;font-size:10px}
+.notification-item{display:flex;width:100%;align-items:flex-start;gap:10px;padding:12px 14px;border:0;border-bottom:1px solid rgba(255,255,255,.045);background:transparent;text-align:left;cursor:pointer}
+.notification-item:hover,.notification-item.unread{background:rgba(57,229,140,.045)}
+.notification-avatar{width:32px;height:32px;flex:none;display:grid;place-items:center;overflow:hidden;border-radius:50%;background:#203244;color:#39e58c;font-size:9px;font-weight:800}
+.notification-avatar img{width:100%;height:100%;object-fit:cover}
+.notification-copy{flex:1;color:#aebdca;font-size:10px;line-height:1.5}
+.notification-copy strong{color:#edf4f8}
+.notification-copy small{display:block;margin-top:4px;color:#718394;font-size:8px}
+.notification-item>i{width:7px;height:7px;flex:none;margin-top:5px;border-radius:50%;background:#39e58c}
+.notification-error{margin:8px 12px;color:#ff9c9c;font-size:9px}
+@media(max-width:640px){
+ .notification-panel{position:fixed;top:74px;right:12px;width:min(360px,calc(100vw - 24px))}
+ .notification-bell{width:33px;height:33px}
+}
