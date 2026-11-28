@@ -6,6 +6,7 @@ export interface FutPulseUser {
   avatarData?: string | null;
   bio?: string;
   profilePublic?: boolean;
+  isAdmin?: boolean;
   createdAt?: number;
 }
 const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
@@ -182,5 +183,30 @@ export interface FutPulseStats {
 
 export async function getMyStats(): Promise<FutPulseStats> {
   const result = await request<{ stats: FutPulseStats }>("stats");
+  return result.stats;
+}
+
+export interface FutPulseAdminStats {
+  users: number;
+  publicProfiles: number;
+  posts: number;
+  likes: number;
+  comments: number;
+  follows: number;
+  newUsersLast30Days: number;
+  postsLast30Days: number;
+  interactionsLast30Days: number;
+}
+
+export async function getAdminStatus(): Promise<{ isAdmin: boolean; bootstrapAvailable: boolean }> {
+  return request("admin/status");
+}
+
+export async function bootstrapAdmin(token: string): Promise<void> {
+  await request("admin/bootstrap", { token });
+}
+
+export async function getAdminStats(): Promise<FutPulseAdminStats> {
+  const result = await request<{ stats: FutPulseAdminStats }>("admin/stats");
   return result.stats;
 }
