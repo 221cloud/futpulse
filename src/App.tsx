@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile } from "./services/authApi";
 import type { FutPulseUser } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -315,11 +315,17 @@ function ProfileAccount({ language }: { language: Language }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [resetToken, setResetToken] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [avatarData, setAvatarData] = useState<string | null>(null);
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("resetToken");
     if (token) { setResetToken(token); setMode("reset"); }
-    getCurrentUser().then(setUser).catch(() => setUser(null));
+    getCurrentUser().then((current) => {
+      setUser(current);
+      if (current) { setProfileName(current.displayName); setAvatarData(current.avatarData ?? null); }
+    }).catch(() => setUser(null));
   }, []);
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -327,10 +333,12 @@ function ProfileAccount({ language }: { language: Language }) {
     setBusy(true); setError(""); setMessage("");
     try {
       if (mode === "register") {
-        setUser(await registerAccount(displayName, email, password));
+        const created = await registerAccount(displayName, email, password);
+        setUser(created); setProfileName(created.displayName); setAvatarData(created.avatarData ?? null);
         setPassword("");
       } else if (mode === "login") {
-        setUser(await loginAccount(email, password));
+        const signedIn = await loginAccount(email, password);
+        setUser(signedIn); setProfileName(signedIn.displayName); setAvatarData(signedIn.avatarData ?? null);
         setPassword("");
       } else if (mode === "forgot") {
         await requestPasswordReset(email);
@@ -349,29 +357,91 @@ function ProfileAccount({ language }: { language: Language }) {
         password_reset_email_unavailable: language === "FR" ? "La récupération par e-mail sera disponible lorsque le domaine FutPulse sera vérifié." : "Email recovery will be available once the FutPulse domain is verified.",
         reset_email_not_sent: language === "FR" ? "Le lien de réinitialisation n'a pas pu être envoyé." : "The reset email could not be sent.",
         invalid_or_expired_token: language === "FR" ? "Ce lien est invalide ou a expiré." : "This link is invalid or has expired.",
-        password_must_be_10_to_128_characters: language === "FR" ? "Le mot de passe doit contenir entre 10 et 128 caractères." : "Password must be 10 to 128 characters."
+        password_must_be_10_to_128_characters: language === "FR" ? "Le mot de passe doit contenir entre 10 et 128 caractères." : "Password must be between 10 and 128 characters."
       };
       setError(messages[code] ?? (language === "FR" ? "Une erreur est survenue. Réessaie plus tard." : "Something went wrong. Please try again."));
     } finally { setBusy(false); }
   };
 
+  const saveProfile = async () => {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const updated = await updateAccountProfile(profileName, avatarData ?? "");
+      setUser(updated); setProfileName(updated.displayName); setAvatarData(updated.avatarData ?? null);
+      setEditing(false);
+      setMessage(fr ? "Ton profil a été mis à jour." : "Your profile has been updated.");
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "profile_update_failed";
+      setError(code === "avatar_too_large"
+        ? (fr ? "La photo est trop volumineuse. Choisis une image plus légère." : "The photo is too large. Choose a smaller image.")
+        : code === "invalid_avatar"
+          ? (fr ? "Format de photo invalide. Utilise JPEG, PNG ou WebP." : "Invalid photo format. Use JPEG, PNG or WebP.")
+          : (fr ? "La mise à jour a échoué. Réessaie." : "Update failed. Please try again."));
+    } finally { setBusy(false); }
+  };
+
+  const chooseAvatar = (file?: File) => {
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError(fr ? "Choisis une image JPEG, PNG ou WebP." : "Choose a JPEG, PNG or WebP image.");
+      return;
+    }
+    const image = new Image();
+    const reader = new FileReader();
+    reader.onload = () => {
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        const scale = Math.min(1, 400 / Math.max(image.width, image.height));
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext("2d");
+        if (!context) { setError(fr ? "Impossible de traiter cette image." : "Could not process this image."); return; }
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        const result = canvas.toDataURL("image/webp", 0.78);
+        if (result.length > 200000) { setError(fr ? "Cette image reste trop volumineuse. Essaie une autre photo." : "This image is still too large. Try another photo."); return; }
+        setAvatarData(result); setError(""); setMessage("");
+      };
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const signOut = async () => {
     setBusy(true); setError("");
-    try { await logoutAccount(); setUser(null); setMessage(language === "FR" ? "Tu es déconnecté." : "You are signed out."); }
+    try { await logoutAccount(); setUser(null); setAvatarData(null); setEditing(false); setMessage(language === "FR" ? "Tu es déconnecté." : "You are signed out."); }
     catch { setError(language === "FR" ? "La déconnexion a échoué." : "Sign out failed."); }
     finally { setBusy(false); }
   };
 
   const fr = language === "FR";
+  const initials = (user?.displayName ?? "FP").slice(0, 2).toUpperCase();
   return <section className="page-section profile-page account-page">
-    <div className="profile-avatar">{user ? user.displayName.slice(0, 2).toUpperCase() : "FP"}</div>
+    <div className="profile-avatar">{user?.avatarData ? <img src={user.avatarData} alt={fr ? "Photo de profil" : "Profile photo"} /> : initials}</div>
     <div className="eyebrow">YOUR SPACE</div>
     <h1>{fr ? "Ton compte FutPulse" : "Your FutPulse account"}</h1>
     {user ? <div className="account-card">
-      <h2>{user.displayName}</h2><p>{user.email}</p>
-      <span className={user.emailVerified ? "account-verified" : "account-unverified"}>{user.emailVerified ? (fr ? "E-mail vérifié" : "Email verified") : (fr ? "E-mail non vérifié" : "Email not verified")}</span>
-      {!user.emailVerified && <p className="account-hint">{fr ? "Ton compte est actif. La vérification de l'adresse et la récupération du mot de passe par e-mail seront activées dès que FutPulse disposera d'un domaine vérifié. Utilise une adresse e-mail valide." : "Your account is active. Email verification and password recovery will be enabled once FutPulse has a verified domain. Use a valid email address."}</p>}
-      <button className="account-submit" onClick={signOut} disabled={busy}>{fr ? "Se déconnecter" : "Sign out"}</button>
+      {editing ? <>
+        <h2>{fr ? "Modifier ton profil" : "Edit your profile"}</h2>
+        <label className="profile-edit-label">{fr ? "Nom affiché" : "Display name"}
+          <input className="profile-edit-input" value={profileName} minLength={2} maxLength={70} onChange={(event) => setProfileName(event.target.value)} />
+        </label>
+        <label className="profile-edit-label">{fr ? "Photo de profil" : "Profile photo"}
+          <input className="profile-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseAvatar(event.target.files?.[0])} />
+        </label>
+        <p className="account-hint">{fr ? "JPEG, PNG ou WebP. La photo sera redimensionnée automatiquement (maximum 150 Ko)." : "JPEG, PNG or WebP. The photo will be resized automatically (150 KB maximum)."}</p>
+        <div className="profile-edit-actions">
+          <button className="account-submit" onClick={saveProfile} disabled={busy || profileName.trim().length < 2}>{busy ? (fr ? "Enregistrement…" : "Saving…") : (fr ? "Enregistrer" : "Save changes")}</button>
+          <button className="account-secondary" onClick={() => { setEditing(false); setProfileName(user.displayName); setAvatarData(user.avatarData ?? null); setError(""); }}> {fr ? "Annuler" : "Cancel"} </button>
+        </div>
+      </> : <>
+        <h2>{user.displayName}</h2><p>{user.email}</p>
+        <span className={user.emailVerified ? "account-verified" : "account-unverified"}>{user.emailVerified ? (fr ? "E-mail vérifié" : "Email verified") : (fr ? "E-mail non vérifié" : "Email not verified")}</span>
+        {!user.emailVerified && <p className="account-hint">{fr ? "Ton compte est actif. La vérification de l'adresse et la récupération du mot de passe par e-mail seront activées dès que FutPulse disposera d'un domaine vérifié. Utilise une adresse e-mail valide." : "Your account is active. Email verification and password recovery will be enabled once FutPulse has a verified domain. Use a valid email address."}</p>}
+        <button className="account-submit" onClick={() => { setEditing(true); setProfileName(user.displayName); setAvatarData(user.avatarData ?? null); setError(""); setMessage(""); }}>{fr ? "Modifier mon profil" : "Edit my profile"}</button>
+        <button className="account-secondary" onClick={signOut} disabled={busy}>{fr ? "Se déconnecter" : "Sign out"}</button>
+      </>}
+      {error && <p className="account-error" role="alert">{error}</p>}
+      {message && <p className="account-message" role="status">{message}</p>}
     </div> : <>
       <p>{fr ? "Connecte-toi pour retrouver ton espace personnel." : "Sign in to access your personal space."}</p>
       {mode !== "reset" && <div className="account-mode-tabs">
@@ -393,7 +463,6 @@ function ProfileAccount({ language }: { language: Language }) {
     <div className="account-notice">{fr ? "Tes informations sont protégées. Ton mot de passe n'est jamais stocké en clair." : "Your information is protected. Your password is never stored in plain text."}</div>
   </section>;
 }
-
 function MatchDetails({ match, onClose }: { match: Match; onClose: () => void }) {
   const [details, setDetails] = useState<MatchDetailsData | null>(null);
   const [detailsStatus, setDetailsStatus] = useState<"loading" | "ready" | "error">("loading");
