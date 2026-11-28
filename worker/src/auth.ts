@@ -187,6 +187,19 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = status === "all" ? await statement.all() : await statement.bind(status).all();
     return reply({ reports: result.results ?? [] }, 200, origin);
   }
+  if (request.method === "GET" && route === "admin/manual-fixtures/events") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const fixtureId = url.searchParams.get("fixtureId") ?? "";
+    if (!/^[0-9a-f-]{36}$/i.test(fixtureId)) return reply({ error: "fixture_not_found" }, 404, origin);
+    const fixture = await db.prepare("SELECT id FROM manual_football_fixtures WHERE id = ?").bind(fixtureId).first<{ id: string }>();
+    if (!fixture) return reply({ error: "fixture_not_found" }, 404, origin);
+    const result = await db.prepare(
+      "SELECT id, fixture_id AS fixtureId, team_side AS teamSide, event_type AS eventType, minute, added_time AS addedTime, player_name AS playerName, related_player_name AS relatedPlayerName, detail, created_at AS createdAt FROM manual_football_fixture_events WHERE fixture_id = ? ORDER BY minute ASC, COALESCE(added_time, 0) ASC, created_at ASC"
+    ).bind(fixtureId).all();
+    return reply({ events: result.results ?? [] }, 200, origin);
+  }
   if (request.method === "GET" && route === "admin/manual-fixtures") {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
@@ -316,6 +329,46 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = await db.prepare("INSERT OR IGNORE INTO moderation_reports (id, post_id, reporter_id, reason, description) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), postId, viewer.id, reason, description || null).run();
     if ((result.meta?.changes ?? 0) === 0) return reply({ error: "already_reported" }, 409, origin);
     return reply({ status: "report_submitted" }, 201, origin);
+  }
+
+  if (route === "admin/manual-fixtures/events") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const fixtureId = typeof body.fixtureId === "string" ? body.fixtureId : "";
+    const teamSide = typeof body.teamSide === "string" ? body.teamSide : "";
+    const eventType = typeof body.eventType === "string" ? body.eventType : "";
+    const minute = typeof body.minute === "number" ? body.minute : Number.NaN;
+    const addedTime = body.addedTime == null || body.addedTime === "" ? null : typeof body.addedTime === "number" ? body.addedTime : Number.NaN;
+    const playerName = typeof body.playerName === "string" ? body.playerName.trim() : "";
+    const relatedPlayerName = typeof body.relatedPlayerName === "string" ? body.relatedPlayerName.trim() : "";
+    const detail = typeof body.detail === "string" ? body.detail.trim() : "";
+    const eventTypes = ["goal", "own_goal", "penalty_scored", "penalty_missed", "yellow_card", "red_card", "substitution", "var"];
+    if (!/^[0-9a-f-]{36}$/i.test(fixtureId)) return reply({ error: "fixture_not_found" }, 404, origin);
+    if (!["home", "away"].includes(teamSide) || !eventTypes.includes(eventType) ||
+        !Number.isInteger(minute) || minute < 0 || minute > 130 ||
+        (addedTime !== null && (!Number.isInteger(addedTime) || addedTime < 0 || addedTime > 30)) ||
+        !playerName || playerName.length > 100 || relatedPlayerName.length > 100 || detail.length > 200) {
+      return reply({ error: "invalid_fixture_event" }, 400, origin);
+    }
+    const fixture = await db.prepare("SELECT id FROM manual_football_fixtures WHERE id = ?").bind(fixtureId).first<{ id: string }>();
+    if (!fixture) return reply({ error: "fixture_not_found" }, 404, origin);
+    const id = crypto.randomUUID();
+    await db.prepare(
+      "INSERT INTO manual_football_fixture_events (id, fixture_id, team_side, event_type, minute, added_time, player_name, related_player_name, detail, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(id, fixtureId, teamSide, eventType, minute, addedTime, playerName, relatedPlayerName || null, detail || null, viewer.id, now).run();
+    return reply({ status: "event_created", event: { id, fixtureId, teamSide, eventType, minute, addedTime, playerName, relatedPlayerName: relatedPlayerName || null, detail: detail || null, createdAt: now } }, 201, origin);
+  }
+
+  if (route === "admin/manual-fixtures/events/delete") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const eventId = typeof body.eventId === "string" ? body.eventId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(eventId)) return reply({ error: "event_not_found" }, 404, origin);
+    const result = await db.prepare("DELETE FROM manual_football_fixture_events WHERE id = ?").bind(eventId).run();
+    if (!(result.meta?.changes ?? 0)) return reply({ error: "event_not_found" }, 404, origin);
+    return reply({ status: "event_deleted" }, 200, origin);
   }
 
   if (route === "admin/manual-fixtures") {
