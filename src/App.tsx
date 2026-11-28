@@ -327,8 +327,8 @@ function ProfileAccount({ language }: { language: Language }) {
     setBusy(true); setError(""); setMessage("");
     try {
       if (mode === "register") {
-        await registerAccount(displayName, email, password);
-        setMessage(language === "FR" ? "Un e-mail de confirmation vient de t'être envoyé. Vérifie ta boîte de réception." : "A confirmation email has been sent. Check your inbox.");
+        setUser(await registerAccount(displayName, email, password));
+        setPassword("");
       } else if (mode === "login") {
         setUser(await loginAccount(email, password));
         setPassword("");
@@ -345,11 +345,10 @@ function ProfileAccount({ language }: { language: Language }) {
       const code = err instanceof Error ? err.message : "auth_request_failed";
       const messages: Record<string, string> = {
         invalid_credentials: language === "FR" ? "Adresse e-mail ou mot de passe incorrect." : "Incorrect email or password.",
-        email_not_verified: language === "FR" ? "Confirme ton adresse e-mail avant de te connecter." : "Verify your email before signing in.",
         account_already_exists: language === "FR" ? "Un compte existe déjà avec cette adresse." : "An account already exists with this email.",
-        email_service_not_configured: language === "FR" ? "Le service e-mail n'est pas encore configuré." : "Email service is not configured yet.",
-        verification_email_not_sent: language === "FR" ? "L'e-mail de confirmation n'a pas pu être envoyé." : "The verification email could not be sent.",
-        invalid_or_expired_token: language === "FR" ? "Ce lien est invalide ou a expiré." : "This link is invalid or expired.",
+        password_reset_email_unavailable: language === "FR" ? "La récupération par e-mail sera disponible lorsque le domaine FutPulse sera vérifié." : "Email recovery will be available once the FutPulse domain is verified.",
+        reset_email_not_sent: language === "FR" ? "Le lien de réinitialisation n'a pas pu être envoyé." : "The reset email could not be sent.",
+        invalid_or_expired_token: language === "FR" ? "Ce lien est invalide ou a expiré." : "This link is invalid or has expired.",
         password_must_be_10_to_128_characters: language === "FR" ? "Le mot de passe doit contenir entre 10 et 128 caractères." : "Password must be 10 to 128 characters."
       };
       setError(messages[code] ?? (language === "FR" ? "Une erreur est survenue. Réessaie plus tard." : "Something went wrong. Please try again."));
@@ -371,6 +370,7 @@ function ProfileAccount({ language }: { language: Language }) {
     {user ? <div className="account-card">
       <h2>{user.displayName}</h2><p>{user.email}</p>
       <span className={user.emailVerified ? "account-verified" : "account-unverified"}>{user.emailVerified ? (fr ? "E-mail vérifié" : "Email verified") : (fr ? "E-mail non vérifié" : "Email not verified")}</span>
+      {!user.emailVerified && <p className="account-hint">{fr ? "Ton compte est actif. La vérification de l'adresse et la récupération du mot de passe par e-mail seront activées dès que FutPulse disposera d'un domaine vérifié. Utilise une adresse e-mail valide." : "Your account is active. Email verification and password recovery will be enabled once FutPulse has a verified domain. Use a valid email address."}</p>}
       <button className="account-submit" onClick={signOut} disabled={busy}>{fr ? "Se déconnecter" : "Sign out"}</button>
     </div> : <>
       <p>{fr ? "Connecte-toi pour retrouver ton espace personnel." : "Sign in to access your personal space."}</p>
@@ -382,7 +382,7 @@ function ProfileAccount({ language }: { language: Language }) {
         {mode === "register" && <label>{fr ? "Nom affiché" : "Display name"}<input required minLength={2} maxLength={70} autoComplete="name" value={displayName} onChange={(event) => setDisplayName(event.target.value)} /></label>}
         {mode !== "reset" && <label>{fr ? "Adresse e-mail" : "Email address"}<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>}
         {(mode === "login" || mode === "register" || mode === "reset") && <label>{fr ? "Mot de passe" : "Password"}<input required type="password" minLength={10} maxLength={128} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => setPassword(event.target.value)} /></label>}
-        {mode === "forgot" && <p className="account-hint">{fr ? "Nous t'enverrons un lien pour choisir un nouveau mot de passe." : "We will email you a link to choose a new password."}</p>}
+        {mode === "forgot" && <p className="account-hint">{fr ? "La récupération par e-mail est temporairement indisponible. Elle sera activée après la vérification du domaine FutPulse." : "Email recovery is temporarily unavailable. It will be enabled after the FutPulse domain is verified."}</p>}
         {error && <p className="account-error" role="alert">{error}</p>}
         {message && <p className="account-message" role="status">{message}</p>}
         <button className="account-submit" type="submit" disabled={busy}>{busy ? (fr ? "Patiente…" : "Please wait…") : mode === "register" ? (fr ? "Créer mon compte" : "Create account") : mode === "forgot" ? (fr ? "Envoyer le lien" : "Send link") : mode === "reset" ? (fr ? "Modifier le mot de passe" : "Update password") : (fr ? "Se connecter" : "Sign in")}</button>
