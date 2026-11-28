@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -749,8 +749,56 @@ function ProfileAccount({ language }: { language: Language }) {
       {mode === "login" && <button className="account-link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{fr ? "Mot de passe oublié ?" : "Forgot password?"}</button>}
       {(mode === "forgot" || mode === "reset") && <button className="account-link" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{fr ? "Retour à la connexion" : "Back to sign in"}</button>}
     </>}
+    {user && <StatsDashboard language={language} />}
     {user && <MyPosts language={language} />}
     <div className="account-notice">{fr ? "Tes informations sont protégées. Ton mot de passe n'est jamais stocké en clair." : "Your information is protected. Your password is never stored in plain text."}</div>
+  </section>;
+}
+
+function StatsDashboard({ language }: { language: Language }) {
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof getMyStats>> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const fr = language === "FR";
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyStats().then((result) => {
+      if (!cancelled) setStats(result);
+    }).catch(() => {
+      if (!cancelled) setError(true);
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const cards = stats ? [
+    { label: fr ? "Abonnés" : "Followers", value: stats.followers, icon: "♙" },
+    { label: fr ? "Abonnements" : "Following", value: stats.following, icon: "↗" },
+    { label: fr ? "Publications" : "Posts", value: stats.posts, icon: "▤" },
+    { label: fr ? "J’aime reçus" : "Likes received", value: stats.likesReceived, icon: "♥" },
+    { label: fr ? "Commentaires reçus" : "Comments received", value: stats.commentsReceived, icon: "▢" },
+    { label: fr ? "Interactions totales" : "Total interactions", value: stats.interactionsReceived, icon: "✦" }
+  ] : [];
+
+  return <section className="stats-dashboard">
+    <div className="section-heading"><div><div className="eyebrow">YOUR PERFORMANCE</div><h2>{fr ? "Mes statistiques" : "My statistics"}</h2></div></div>
+    {loading && <p className="community-status">{fr ? "Chargement des statistiques…" : "Loading statistics…"}</p>}
+    {!loading && error && <p className="community-status">{fr ? "Les statistiques sont momentanément indisponibles." : "Statistics are temporarily unavailable."}</p>}
+    {!loading && !error && stats && <>
+      <div className="stats-grid">
+        {cards.map((card) => <article className="stats-card" key={card.label}>
+          <span aria-hidden="true">{card.icon}</span>
+          <small>{card.label}</small>
+          <strong>{card.value.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong>
+        </article>)}
+      </div>
+      <div className="stats-period">
+        <div><span>{fr ? "Interactions sur les 30 derniers jours" : "Interactions in the last 30 days"}</span><strong>{stats.interactionsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
+        <small>{fr ? "Total des J’aime et commentaires reçus sur tes publications." : "Total likes and comments received on your posts."}</small>
+      </div>
+    </>}
   </section>;
 }
 
