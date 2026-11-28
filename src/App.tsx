@@ -1178,6 +1178,12 @@ function PublicProfilePage({ userId, language }: { userId: string; language: Lan
         <h1>{profile.displayName}</h1>
         <p className="public-profile-bio">{profile.bio || (fr ? "Passionné(e) de football." : "Football enthusiast.")}</p>
         <div className="public-profile-joined">{profile.followerCount} {fr ? "abonné(s)" : "follower(s)"} · {profile.followingCount} {fr ? "abonnement(s)" : "following"}</div>
+        <div className="stats-grid public-profile-stats">
+          <article className="stats-card"><small>{fr ? "Publications" : "Posts"}</small><strong>{profile.postCount.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></article>
+          <article className="stats-card"><small>{fr ? "J’aime reçus" : "Likes received"}</small><strong>{profile.likesReceived.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></article>
+          <article className="stats-card"><small>{fr ? "Commentaires reçus" : "Comments received"}</small><strong>{profile.commentsReceived.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></article>
+          <article className="stats-card"><small>{fr ? "Interactions" : "Interactions"}</small><strong>{profile.interactionsReceived.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></article>
+        </div>
         {viewer && viewer.id !== profile.id && <button className="account-submit" type="button" onClick={toggleFollow} disabled={followBusy}>{followBusy ? (fr ? "Patiente…" : "Please wait…") : profile.isFollowing ? (fr ? "Ne plus suivre" : "Unfollow") : (fr ? "Suivre" : "Follow")}</button>}
         {followError && <p className="account-message" role="alert">{followError}</p>}
         {joined && <p className="public-profile-joined">{fr ? "Membre depuis " : "Member since "}{joined}</p>}
