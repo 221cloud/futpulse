@@ -114,6 +114,32 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const user = await currentUser(request, db);
     return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null, bio: user.bio ?? "", profilePublic: Boolean(user.profile_public), createdAt: user.created_at } : null }, 200, origin);
   }
+  if (request.method === "GET" && route === "stats") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const since = now - 30 * 24 * 60 * 60;
+    const [followers, following, posts, likes, comments, recentLikes, recentComments] = await Promise.all([
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE followed_id = ?").bind(viewer.id).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE follower_id = ?").bind(viewer.id).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_posts WHERE author_id = ?").bind(viewer.id).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_likes l JOIN community_posts p ON p.id = l.post_id WHERE p.author_id = ?").bind(viewer.id).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_comments c JOIN community_posts p ON p.id = c.post_id WHERE p.author_id = ?").bind(viewer.id).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_likes l JOIN community_posts p ON p.id = l.post_id WHERE p.author_id = ? AND l.created_at >= ?").bind(viewer.id, since).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_comments c JOIN community_posts p ON p.id = c.post_id WHERE p.author_id = ? AND c.created_at >= ?").bind(viewer.id, since).first<{ count: number }>()
+    ]);
+    const likesReceived = likes?.count ?? 0;
+    const commentsReceived = comments?.count ?? 0;
+    const recentInteractions = (recentLikes?.count ?? 0) + (recentComments?.count ?? 0);
+    return reply({ stats: {
+      followers: followers?.count ?? 0,
+      following: following?.count ?? 0,
+      posts: posts?.count ?? 0,
+      likesReceived,
+      commentsReceived,
+      interactionsReceived: likesReceived + commentsReceived,
+      interactionsLast30Days: recentInteractions
+    } }, 200, origin);
+  }
   if (request.method === "GET" && route === "notifications") {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
