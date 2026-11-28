@@ -6,11 +6,11 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
 
 type Language = "FR" | "EN";
-type Tab = "home" | "matches" | "news" | "community" | "favorites" | "profile";
+type Tab = "home" | "matches" | "news" | "featured" | "community" | "favorites" | "profile";
 
 type Match = {
   id: number;
@@ -27,7 +27,7 @@ type Match = {
 
 const copy = {
   FR: {
-    home: "Accueil", matches: "Matchs", news: "Actualités", community: "À la une", favorites: "Favoris", profile: "Profil",
+    home: "Accueil", matches: "Matchs", news: "Actualités", featured: "À la une", community: "Communauté", favorites: "Favoris", profile: "Profil",
     greeting: "Le football en temps réel.", subtitle: "Toute l’actualité du jeu. Au même endroit.",
     live: "EN DIRECT", today: "À la une", seeAll: "Tout voir", upcoming: "À venir",
     latest: "Dernières actualités", competitions: "Compétitions suivies", demo: "Version de démonstration",
@@ -39,7 +39,7 @@ const copy = {
     newsLoading: "Chargement des actualités…", newsError: "Les actualités sont momentanément indisponibles.", newsEmpty: "Aucun article publié pour le moment.", newsSource: "Source"
   },
   EN: {
-    home: "Home", matches: "Matches", news: "News", community: "Community", favorites: "Favorites", profile: "Profile",
+    home: "Home", matches: "Matches", news: "News", featured: "Featured", community: "Community", favorites: "Favorites", profile: "Profile",
     greeting: "Football, in real time.", subtitle: "Everything happening in the game. All in one place.",
     live: "LIVE", today: "Featured", seeAll: "See all", upcoming: "Upcoming",
     latest: "Latest news", competitions: "Followed competitions", demo: "Demo version",
@@ -56,7 +56,8 @@ const navItems: { id: Tab; icon: string }[] = [
   { id: "home", icon: "⌂" },
   { id: "matches", icon: "◷" },
   { id: "news", icon: "▤" },
-  { id: "community", icon: "✦" },
+  { id: "featured", icon: "✦" },
+  { id: "community", icon: "◎" },
   { id: "favorites", icon: "☆" },
   { id: "profile", icon: "◉" }
 ];
@@ -179,7 +180,7 @@ function App() {
     setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
   };
 
-  const title = tab === "home" ? t.home : tab === "matches" ? t.matches : tab === "news" ? t.news : tab === "community" ? t.community : tab === "favorites" ? t.favorites : t.profile;
+  const title = tab === "home" ? t.home : tab === "matches" ? t.matches : tab === "news" ? t.news : tab === "featured" ? t.featured : tab === "community" ? t.community : tab === "favorites" ? t.favorites : t.profile;
 
   return (
     <div className="app-shell">
@@ -271,7 +272,8 @@ function App() {
 
           {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} articles={newsArticles} status={newsStatus} expanded onArticleOpen={setSelectedArticle} /></section>}
 
-          {tab === "community" && <CommunityPage language={language} />}
+          {tab === "featured" && <CommunityPage language={language} />}
+          {tab === "community" && <CommunityDiscoveryPage language={language} />}
           
           {tab === "favorites" && (
             <section className="page-section"><div className="page-heading"><div className="eyebrow">YOUR GAME</div><h1>{t.favorites}</h1><p>{t.favoriteHint}</p></div>
@@ -658,6 +660,78 @@ function CommunityPage({ language }: { language: Language }) {
         <PostReactions post={post} language={language} />
         <PostComments post={post} language={language} />
         <PostReport post={post} language={language} />
+      </article>)}
+    </div>
+  </section>;
+}
+
+
+function CommunityDiscoveryPage({ language }: { language: Language }) {
+  const [members, setMembers] = useState<FutPulseCommunityMember[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
+  const fr = language === "FR";
+
+  const refresh = async () => {
+    try {
+      const result = await getCommunityMembers();
+      setMembers(result);
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  const toggleFollow = async (member: FutPulseCommunityMember) => {
+    if (busyId) return;
+    setBusyId(member.id);
+    setMessage("");
+    try {
+      const result = member.isFollowing
+        ? await unfollowUser(member.id)
+        : await followUser(member.id);
+      setMembers((current) => current.map((item) => item.id === member.id
+        ? { ...item, isFollowing: result.isFollowing, followerCount: result.followerCount }
+        : item));
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      setMessage(code === "not_authenticated"
+        ? (fr ? "Connecte-toi pour suivre un membre." : "Sign in to follow a member.")
+        : (fr ? "Impossible de modifier cet abonnement." : "Could not update this follow."));
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  return <section className="page-section community-page">
+    <div className="page-heading">
+      <div className="eyebrow">FUTPULSE COMMUNITY</div>
+      <h1>{fr ? "Communauté" : "Community"}</h1>
+      <p>{fr ? "Découvre les supporters, leurs profils publics et leurs publications." : "Discover football fans, public profiles and their posts."}</p>
+    </div>
+    {message && <p className="account-message" role="status">{message}</p>}
+    {status === "loading" && <p className="community-status">{fr ? "Chargement des membres…" : "Loading members…"}</p>}
+    {status === "error" && <div className="empty-state">
+      {fr ? "La liste des membres est momentanément indisponible." : "The member list is temporarily unavailable."}
+      <button className="account-secondary" onClick={() => { setStatus("loading"); void refresh(); }}>{fr ? "Réessayer" : "Retry"}</button>
+    </div>}
+    {status === "ready" && members.length === 0 && <div className="empty-state">{fr ? "Aucun profil public pour le moment." : "No public profiles yet."}</div>}
+    <div className="community-post-list">
+      {members.map((member) => <article className="community-post" key={member.id}>
+        <div className="community-post-head">
+          <div className="community-post-avatar">{member.avatarData ? <img src={member.avatarData} alt="" /> : member.displayName.slice(0, 2).toUpperCase()}</div>
+          <div><strong>{member.displayName}</strong><small>{member.followerCount} {fr ? "abonné(s)" : "followers"} · {member.postCount} {fr ? "publication(s)" : "posts"}</small></div>
+        </div>
+        <p>{member.bio || (fr ? "Passionné(e) de football." : "Football enthusiast.")}</p>
+        <div className="community-composer-meta">
+          <a className="account-secondary" href={`/profile/${member.id}`}>{fr ? "Voir le profil" : "View profile"} ↗</a>
+          <button className="account-submit" type="button" disabled={busyId === member.id} onClick={() => void toggleFollow(member)}>
+            {busyId === member.id ? (fr ? "Patiente…" : "Please wait…") : member.isFollowing ? (fr ? "Ne plus suivre" : "Unfollow") : (fr ? "Suivre" : "Follow")}
+          </button>
+        </div>
       </article>)}
     </div>
   </section>;
