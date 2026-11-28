@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, getPublicCommunityPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulseCommunityMember, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -668,6 +668,8 @@ function CommunityPage({ language }: { language: Language }) {
 
 function CommunityDiscoveryPage({ language }: { language: Language }) {
   const [members, setMembers] = useState<FutPulseCommunityMember[]>([]);
+  const [posts, setPosts] = useState<FutPulsePost[]>([]);
+  const [viewerId, setViewerId] = useState("");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [busyId, setBusyId] = useState("");
   const [message, setMessage] = useState("");
@@ -675,8 +677,14 @@ function CommunityDiscoveryPage({ language }: { language: Language }) {
 
   const refresh = async () => {
     try {
-      const result = await getCommunityMembers();
+      const [result, communityPosts, viewer] = await Promise.all([
+        getCommunityMembers(),
+        getPublicCommunityPosts(),
+        getCurrentUser()
+      ]);
       setMembers(result);
+      setPosts(communityPosts);
+      setViewerId(viewer?.id ?? "");
       setStatus("ready");
     } catch {
       setStatus("error");
@@ -718,6 +726,23 @@ function CommunityDiscoveryPage({ language }: { language: Language }) {
       {fr ? "La liste des membres est momentanément indisponible." : "The member list is temporarily unavailable."}
       <button className="account-secondary" onClick={() => { setStatus("loading"); void refresh(); }}>{fr ? "Réessayer" : "Retry"}</button>
     </div>}
+    <div className="section-heading compact-heading"><div><div className="eyebrow">{fr ? "LE FIL PUBLIC" : "PUBLIC FEED"}</div><h2>{fr ? "Publications récentes" : "Recent posts"}</h2></div></div>
+    {status === "ready" && posts.length === 0 && <div className="empty-state">{fr ? "Aucune publication publique pour le moment." : "No public posts yet."}</div>}
+    <div className="community-post-list">
+      {posts.map((post) => <article className="community-post" key={post.id}>
+        <div className="community-post-head">
+          <div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0, 2).toUpperCase()}</div>
+          <div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div>
+          <span className="community-category">{post.category === "opinion" ? "Opinion" : post.category === "analysis" ? (fr ? "Analyse" : "Analysis") : (fr ? "Actualité" : "News")}</span>
+        </div>
+        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}
+        <p>{post.content}</p>
+        <PostReactions post={post} language={language} />
+        <PostComments post={post} language={language} />
+        {viewerId && post.authorId !== viewerId && <PostReport post={post} language={language} />}
+      </article>)}
+    </div>
+    <div className="section-heading compact-heading"><div><div className="eyebrow">{fr ? "MEMBRES" : "MEMBERS"}</div><h2>{fr ? "Découvrir les supporters" : "Discover members"}</h2></div></div>
     {status === "ready" && members.length === 0 && <div className="empty-state">{fr ? "Aucun profil public pour le moment." : "No public profiles yet."}</div>}
     <div className="community-post-list">
       {members.map((member) => <article className="community-post" key={member.id}>
