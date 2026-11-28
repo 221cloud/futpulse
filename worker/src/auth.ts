@@ -161,7 +161,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (matchLabel.length > 100) return reply({ error: "invalid_match_label" }, 400, origin);
     const id = crypto.randomUUID();
     await db.prepare("INSERT INTO community_posts (id, author_id, content, category, match_label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, user.id, content, category, matchLabel || null, now, now).run();
-    return reply({ post: { id, authorId: user.id, content, category, matchLabel: matchLabel || null, createdAt: now, authorName: user.display_name, authorAvatar: user.avatar_data ?? null } }, 201, origin);
+    return reply({ post: { id, authorId: user.id, content, category, matchLabel: matchLabel || null, createdAt: now, authorName: user.display_name, authorAvatar: user.avatar_data ?? null, likeCount: 0, likedByMe: false } }, 201, origin);
   }
 
   if (route === "posts/like" || route === "posts/unlike") {
