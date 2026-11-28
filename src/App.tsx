@@ -908,6 +908,7 @@ function AdminDashboard({ language }: { language: Language }) {
         <div><span>{fr ? "Publications (30 jours)" : "Posts (30 days)"}</span><strong>{stats.postsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
         <div><span>{fr ? "Interactions (30 jours)" : "Interactions (30 days)"}</span><strong>{stats.interactionsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
       </div>
+      <AdminReportsQueue language={language} />
     </> : status.bootstrapAvailable ? <div className="account-card admin-bootstrap-card">
       <h3>{fr ? "Activer le premier administrateur" : "Activate the first administrator"}</h3>
       <p>{fr ? "Cette activation est réservée au propriétaire de FutPulse. Saisis le code temporaire configuré sur le Worker Cloudflare." : "This activation is reserved for the FutPulse owner. Enter the temporary code configured in the Cloudflare Worker."}</p>
