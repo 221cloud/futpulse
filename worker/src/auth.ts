@@ -187,6 +187,15 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = status === "all" ? await statement.all() : await statement.bind(status).all();
     return reply({ reports: result.results ?? [] }, 200, origin);
   }
+  if (request.method === "GET" && route === "admin/manual-fixtures") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const result = await db.prepare(
+      "SELECT id, competition_name AS competitionName, season, round_label AS roundLabel, kickoff_at AS kickoffAt, home_team_name AS homeTeamName, away_team_name AS awayTeamName, venue, status, home_score AS homeScore, away_score AS awayScore, created_at AS createdAt, updated_at AS updatedAt FROM manual_football_fixtures ORDER BY kickoff_at DESC LIMIT 200"
+    ).all();
+    return reply({ fixtures: result.results ?? [] }, 200, origin);
+  }
   if (request.method === "GET" && route === "notifications") {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
@@ -307,6 +316,55 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = await db.prepare("INSERT OR IGNORE INTO moderation_reports (id, post_id, reporter_id, reason, description) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), postId, viewer.id, reason, description || null).run();
     if ((result.meta?.changes ?? 0) === 0) return reply({ error: "already_reported" }, 409, origin);
     return reply({ status: "report_submitted" }, 201, origin);
+  }
+
+  if (route === "admin/manual-fixtures") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const competitionName = typeof body.competitionName === "string" ? body.competitionName.trim() : "";
+    const season = typeof body.season === "string" ? body.season.trim() : "";
+    const roundLabel = typeof body.roundLabel === "string" ? body.roundLabel.trim() : "";
+    const kickoffAt = typeof body.kickoffAt === "string" ? body.kickoffAt.trim() : "";
+    const homeTeamName = typeof body.homeTeamName === "string" ? body.homeTeamName.trim() : "";
+    const awayTeamName = typeof body.awayTeamName === "string" ? body.awayTeamName.trim() : "";
+    const venue = typeof body.venue === "string" ? body.venue.trim() : "";
+    const validKickoff = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(kickoffAt) && Number.isFinite(Date.parse(kickoffAt));
+    if (!competitionName || competitionName.length > 100 || !season || season.length > 20 ||
+        !validKickoff || !homeTeamName || homeTeamName.length > 100 ||
+        !awayTeamName || awayTeamName.length > 100 || homeTeamName.toLowerCase() === awayTeamName.toLowerCase() ||
+        roundLabel.length > 50 || venue.length > 120) {
+      return reply({ error: "invalid_fixture_data" }, 400, origin);
+    }
+    const id = crypto.randomUUID();
+    await db.prepare(
+      "INSERT INTO manual_football_fixtures (id, competition_name, season, round_label, kickoff_at, home_team_name, away_team_name, venue, created_by, updated_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    ).bind(id, competitionName, season, roundLabel || null, kickoffAt, homeTeamName, awayTeamName, venue || null, viewer.id, viewer.id).run();
+    return reply({ status: "fixture_created", fixtureId: id }, 201, origin);
+  }
+
+  if (route === "admin/manual-fixtures/update") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const fixtureId = typeof body.fixtureId === "string" ? body.fixtureId : "";
+    const status = typeof body.status === "string" ? body.status : "";
+    const homeScoreRaw = typeof body.homeScore === "string" ? body.homeScore.trim() : "";
+    const awayScoreRaw = typeof body.awayScore === "string" ? body.awayScore.trim() : "";
+    const allowedStatuses = ["scheduled", "live", "finished", "postponed", "cancelled"];
+    const validScore = (value: string) => value === "" || (/^\d{1,2}$/.test(value) && Number(value) <= 99);
+    if (!/^[0-9a-f-]{36}$/i.test(fixtureId)) return reply({ error: "fixture_not_found" }, 404, origin);
+    if (!allowedStatuses.includes(status) || !validScore(homeScoreRaw) || !validScore(awayScoreRaw)) {
+      return reply({ error: "invalid_fixture_update" }, 400, origin);
+    }
+    const existing = await db.prepare("SELECT id FROM manual_football_fixtures WHERE id = ?").bind(fixtureId).first<{ id: string }>();
+    if (!existing) return reply({ error: "fixture_not_found" }, 404, origin);
+    const homeScore = homeScoreRaw === "" ? null : Number(homeScoreRaw);
+    const awayScore = awayScoreRaw === "" ? null : Number(awayScoreRaw);
+    await db.prepare(
+      "UPDATE manual_football_fixtures SET status = ?, home_score = ?, away_score = ?, updated_by = ?, updated_at = ? WHERE id = ?"
+    ).bind(status, homeScore, awayScore, viewer.id, now, fixtureId).run();
+    return reply({ status: "fixture_updated" }, 200, origin);
   }
 
   if (route === "admin/reports/review") {
