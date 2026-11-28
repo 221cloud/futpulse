@@ -7,7 +7,7 @@ import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
 import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile } from "./services/authApi";
-import { getPublicProfile } from "./services/authApi";
+import { getPublicProfile, getCurrentUser, followUser, unfollowUser } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -480,18 +480,35 @@ function ProfileAccount({ language }: { language: Language }) {
 function PublicProfilePage({ userId, language }: { userId: string; language: Language }) {
   const [profile, setProfile] = useState<FutPulsePublicProfile | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [viewer, setViewer] = useState<FutPulseUser | null>(null);
+  const [followBusy, setFollowBusy] = useState(false);
+  const [followError, setFollowError] = useState("");
   const fr = language === "FR";
   useEffect(() => {
     let cancelled = false;
-    getPublicProfile(userId).then((result) => {
+    Promise.all([getPublicProfile(userId), getCurrentUser()]).then(([result, current]) => {
       if (cancelled) return;
       setProfile(result);
+      setViewer(current);
       setStatus("ready");
     }).catch(() => {
       if (!cancelled) setStatus("error");
     });
     return () => { cancelled = true; };
   }, [userId]);
+  const toggleFollow = async () => {
+    if (!profile || !viewer || followBusy) return;
+    setFollowBusy(true);
+    setFollowError("");
+    try {
+      const result = profile.isFollowing ? await unfollowUser(profile.id) : await followUser(profile.id);
+      setProfile({ ...profile, ...result });
+    } catch (error) {
+      setFollowError(error instanceof Error ? error.message : (fr ? "Action impossible." : "Action failed."));
+    } finally {
+      setFollowBusy(false);
+    }
+  };
   const joined = profile?.createdAt ? new Date(profile.createdAt * 1000).toLocaleDateString(fr ? "fr-FR" : "en-GB", { month: "long", year: "numeric" }) : "";
   return <main className="app-shell public-profile-shell">
     <header className="topbar"><a className="brand" href="/"><span className="brand-mark">FP</span><span className="brand-title">FUT<span className="brand-light">PULSE</span></span></a></header>
@@ -503,6 +520,9 @@ function PublicProfilePage({ userId, language }: { userId: string; language: Lan
         <div className="eyebrow">FUTPULSE COMMUNITY</div>
         <h1>{profile.displayName}</h1>
         <p className="public-profile-bio">{profile.bio || (fr ? "Passionné(e) de football." : "Football enthusiast.")}</p>
+        <div className="public-profile-joined">{profile.followerCount} {fr ? "abonné(s)" : "follower(s)"} · {profile.followingCount} {fr ? "abonnement(s)" : "following"}</div>
+        {viewer && viewer.id !== profile.id && <button className="account-submit" type="button" onClick={toggleFollow} disabled={followBusy}>{followBusy ? (fr ? "Patiente…" : "Please wait…") : profile.isFollowing ? (fr ? "Ne plus suivre" : "Unfollow") : (fr ? "Suivre" : "Follow")}</button>}
+        {followError && <p className="account-message" role="alert">{followError}</p>}
         {joined && <p className="public-profile-joined">{fr ? "Membre depuis " : "Member since "}{joined}</p>}
       </>}
       <a className="account-link public-profile-home" href="/">{fr ? "← Retour à FutPulse" : "← Back to FutPulse"}</a>
