@@ -144,7 +144,7 @@ export default {
               competitionName: fixture.competition_name,
               season: fixture.season,
               kickoffAt: fixture.kickoff_at,
-              status: fixture.status,
+              status: (["scheduled", "live", "finished", "postponed", "cancelled"].includes(fixture.status) ? fixture.status : "unknown") as "scheduled" | "live" | "finished" | "postponed" | "cancelled" | "unknown",
               homeTeam: { id: `manual-home-${fixture.id}`, name: fixture.home_team_name },
               awayTeam: { id: `manual-away-${fixture.id}`, name: fixture.away_team_name },
               homeScore: fixture.home_score,
