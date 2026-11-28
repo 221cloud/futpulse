@@ -169,3 +169,18 @@ export async function markNotificationRead(notificationId: string): Promise<void
 export async function markAllNotificationsRead(): Promise<void> {
   await request("notifications/read-all", {});
 }
+
+export interface FutPulseStats {
+  followers: number;
+  following: number;
+  posts: number;
+  likesReceived: number;
+  commentsReceived: number;
+  interactionsReceived: number;
+  interactionsLast30Days: number;
+}
+
+export async function getMyStats(): Promise<FutPulseStats> {
+  const result = await request<{ stats: FutPulseStats }>("stats");
+  return result.stats;
+}
