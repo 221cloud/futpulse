@@ -6,8 +6,8 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "community" | "favorites" | "profile";
@@ -496,6 +496,85 @@ function PostComments({ post, language }: { post: FutPulsePost; language: Langua
   </div>;
 }
 
+
+function PostReport({ post, language }: { post: FutPulsePost; language: Language }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState<FutPulseReportReason>("inappropriate_content");
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const fr = language === "FR";
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (busy) return;
+    setBusy(true); setMessage("");
+    try {
+      await reportCommunityPost(post.id, reason, description);
+      setMessage(fr ? "Signalement envoyé. Merci." : "Report submitted. Thank you.");
+      setOpen(false);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      setMessage(code === "already_reported"
+        ? (fr ? "Tu as déjà signalé cette publication." : "You have already reported this post.")
+        : (fr ? "Impossible d'envoyer le signalement." : "Could not submit the report."));
+    } finally { setBusy(false); }
+  };
+  return <div className="community-report">
+    {!open ? <button type="button" className="community-comments-toggle" onClick={() => setOpen(true)}>{fr ? "Signaler" : "Report"}</button> :
+      <form className="community-comment-form" onSubmit={submit}>
+        <select value={reason} onChange={(event) => setReason(event.target.value as FutPulseReportReason)} aria-label={fr ? "Motif du signalement" : "Report reason"}>
+          <option value="spam">{fr ? "Spam" : "Spam"}</option>
+          <option value="harassment">{fr ? "Harcèlement" : "Harassment"}</option>
+          <option value="hate_speech">{fr ? "Discours haineux" : "Hate speech"}</option>
+          <option value="false_information">{fr ? "Fausse information" : "False information"}</option>
+          <option value="inappropriate_content">{fr ? "Contenu inapproprié" : "Inappropriate content"}</option>
+          <option value="other">{fr ? "Autre" : "Other"}</option>
+        </select>
+        <textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={500} rows={2} placeholder={fr ? "Précisions (facultatif)" : "Details (optional)"} />
+        <div><button className="account-submit" type="submit" disabled={busy}>{busy ? (fr ? "Envoi…" : "Sending…") : (fr ? "Envoyer le signalement" : "Submit report")}</button><button type="button" className="account-secondary" onClick={() => setOpen(false)}>{fr ? "Annuler" : "Cancel"}</button></div>
+      </form>}
+    {message && <small role="status">{message}</small>}
+  </div>;
+}
+
+function AdminReportsQueue({ language }: { language: Language }) {
+  const [reports, setReports] = useState<FutPulseModerationReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState("");
+  const [message, setMessage] = useState("");
+  const fr = language === "FR";
+  const refresh = async () => setReports(await getAdminReports());
+  useEffect(() => { refresh().catch(() => setMessage(fr ? "Impossible de charger les signalements." : "Could not load reports.")).finally(() => setLoading(false)); }, []);
+  const act = async (report: FutPulseModerationReport, action: "dismiss" | "delete_post") => {
+    const prompt = action === "delete_post"
+      ? (fr ? "Supprimer définitivement cette publication ?" : "Permanently delete this post?")
+      : (fr ? "Classer ce signalement sans supprimer la publication ?" : "Dismiss this report without deleting the post?");
+    if (!window.confirm(prompt)) return;
+    setBusyId(report.id); setMessage("");
+    try { await reviewAdminReport(report.id, action); await refresh(); }
+    catch { setMessage(fr ? "Action impossible. Réessaie." : "Action failed. Try again."); }
+    finally { setBusyId(""); }
+  };
+  const reasonLabels: Record<FutPulseReportReason, string> = {
+    spam: "Spam", harassment: fr ? "Harcèlement" : "Harassment", hate_speech: fr ? "Discours haineux" : "Hate speech",
+    false_information: fr ? "Fausse information" : "False information",
+    inappropriate_content: fr ? "Contenu inapproprié" : "Inappropriate content", other: fr ? "Autre" : "Other"
+  };
+  return <div className="admin-reports">
+    <div className="section-heading"><div><div className="eyebrow">MODERATION</div><h3>{fr ? "Signalements en attente" : "Pending reports"} ({reports.length})</h3></div><button type="button" className="account-secondary" onClick={() => void refresh()}>{fr ? "Actualiser" : "Refresh"}</button></div>
+    {loading ? <p className="community-status">{fr ? "Chargement…" : "Loading…"}</p> : reports.length === 0 ? <p className="community-status">{fr ? "Aucun signalement en attente." : "No pending reports."}</p> :
+      reports.map((report) => <article className="community-post" key={report.id}>
+        <div className="community-post-head"><strong>{fr ? "Signalé par" : "Reported by"} {report.reporterName}</strong><small>{new Date(report.createdAt).toLocaleString(fr ? "fr-FR" : "en-GB")}</small></div>
+        <p><strong>{fr ? "Auteur :" : "Author:"}</strong> {report.postAuthorName}</p>
+        <p><strong>{fr ? "Motif :" : "Reason:"}</strong> {reasonLabels[report.reason]}</p>
+        {report.description && <p>{report.description}</p>}
+        <blockquote>{report.postContent}</blockquote>
+        <div className="community-composer-meta"><button type="button" className="account-secondary" disabled={busyId === report.id} onClick={() => void act(report, "dismiss")}>{fr ? "Ignorer le signalement" : "Dismiss report"}</button><button type="button" className="account-submit" disabled={busyId === report.id} onClick={() => void act(report, "delete_post")}>{fr ? "Supprimer la publication" : "Delete post"}</button></div>
+      </article>)}
+    {message && <p className="account-error" role="alert">{message}</p>}
+  </div>;
+}
+
 function CommunityPage({ language }: { language: Language }) {
   const [posts, setPosts] = useState<FutPulsePost[]>([]);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -578,6 +657,7 @@ function CommunityPage({ language }: { language: Language }) {
         <p>{post.content}</p>
         <PostReactions post={post} language={language} />
         <PostComments post={post} language={language} />
+        <PostReport post={post} language={language} />
       </article>)}
     </div>
   </section>;
