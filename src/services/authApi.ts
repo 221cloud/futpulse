@@ -82,6 +82,8 @@ export interface FutPulsePost {
   createdAt: number;
   authorName: string;
   authorAvatar: string | null;
+  likeCount: number;
+  likedByMe: boolean;
 }
 export async function getCommunityFeed(): Promise<FutPulsePost[]> {
   const result = await request<{ posts: FutPulsePost[] }>("posts/feed");
@@ -104,4 +106,11 @@ export async function getUserPosts(userId: string): Promise<FutPulsePost[]> {
 export async function createCommunityPost(content: string, category: FutPulsePostCategory, matchLabel = ""): Promise<FutPulsePost> {
   const result = await request<{ post: FutPulsePost }>("posts", { content, category, matchLabel });
   return result.post;
+}
+
+export async function likeCommunityPost(postId: string): Promise<{ likeCount: number; likedByMe: boolean }> {
+  return request("posts/like", { postId });
+}
+export async function unlikeCommunityPost(postId: string): Promise<{ likeCount: number; likedByMe: boolean }> {
+  return request("posts/unlike", { postId });
 }
