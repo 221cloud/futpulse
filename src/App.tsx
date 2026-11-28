@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -991,6 +991,7 @@ function MyPosts({ language }: { language: Language }) {
 
 function PublicProfilePage({ userId, language }: { userId: string; language: Language }) {
   const [profile, setProfile] = useState<FutPulsePublicProfile | null>(null);
+  const [posts, setPosts] = useState<FutPulsePost[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [viewer, setViewer] = useState<FutPulseUser | null>(null);
   const [followBusy, setFollowBusy] = useState(false);
@@ -998,14 +999,25 @@ function PublicProfilePage({ userId, language }: { userId: string; language: Lan
   const fr = language === "FR";
   useEffect(() => {
     let cancelled = false;
-    Promise.all([getPublicProfile(userId), getCurrentUser()]).then(([result, current]) => {
-      if (cancelled) return;
-      setProfile(result);
-      setViewer(current);
-      setStatus("ready");
-    }).catch(() => {
-      if (!cancelled) setStatus("error");
-    });
+    const load = async () => {
+      try {
+        const [result, current] = await Promise.all([getPublicProfile(userId), getCurrentUser()]);
+        if (cancelled) return;
+        setProfile(result);
+        setViewer(current);
+        if (current) {
+          const userPosts = await getUserPosts(userId);
+          if (cancelled) return;
+          setPosts(userPosts);
+        } else {
+          setPosts([]);
+        }
+        setStatus("ready");
+      } catch {
+        if (!cancelled) setStatus("error");
+      }
+    };
+    void load();
     return () => { cancelled = true; };
   }, [userId]);
   const toggleFollow = async () => {
@@ -1021,6 +1033,9 @@ function PublicProfilePage({ userId, language }: { userId: string; language: Lan
       setFollowBusy(false);
     }
   };
+  const categoryName = (value: FutPulsePostCategory) => value === "opinion"
+    ? "Opinion"
+    : value === "analysis" ? (fr ? "Analyse" : "Analysis") : (fr ? "Actualité" : "News");
   const joined = profile?.createdAt ? new Date(profile.createdAt * 1000).toLocaleDateString(fr ? "fr-FR" : "en-GB", { month: "long", year: "numeric" }) : "";
   return <main className="app-shell public-profile-shell">
     <header className="topbar"><a className="brand" href="/"><span className="brand-mark">FP</span><span className="brand-title">FUT<span className="brand-light">PULSE</span></span></a></header>
@@ -1036,6 +1051,25 @@ function PublicProfilePage({ userId, language }: { userId: string; language: Lan
         {viewer && viewer.id !== profile.id && <button className="account-submit" type="button" onClick={toggleFollow} disabled={followBusy}>{followBusy ? (fr ? "Patiente…" : "Please wait…") : profile.isFollowing ? (fr ? "Ne plus suivre" : "Unfollow") : (fr ? "Suivre" : "Follow")}</button>}
         {followError && <p className="account-message" role="alert">{followError}</p>}
         {joined && <p className="public-profile-joined">{fr ? "Membre depuis " : "Member since "}{joined}</p>}
+        <section className="section-block public-profile-posts">
+          <div className="section-heading"><div><div className="eyebrow">FUTPULSE COMMUNITY</div><h2>{fr ? "Publications" : "Posts"} ({posts.length})</h2></div></div>
+          {!viewer && <p className="community-status">{fr ? "Connecte-toi pour consulter les publications de ce membre." : "Sign in to view this member's posts."}</p>}
+          {viewer && posts.length === 0 && <p className="community-status">{fr ? "Aucune publication pour le moment." : "No posts yet."}</p>}
+          <div className="community-post-list">
+            {posts.map((post) => <article className="community-post" key={post.id}>
+              <div className="community-post-head">
+                <div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0, 2).toUpperCase()}</div>
+                <div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div>
+                <span className="community-category">{categoryName(post.category)}</span>
+              </div>
+              {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}
+              <p>{post.content}</p>
+              <PostReactions post={post} language={language} />
+              <PostComments post={post} language={language} />
+              {viewer.id !== post.authorId && <PostReport post={post} language={language} />}
+            </article>)}
+          </div>
+        </section>
       </>}
       <a className="account-link public-profile-home" href="/">{fr ? "← Retour à FutPulse" : "← Back to FutPulse"}</a>
     </section>
