@@ -194,8 +194,8 @@ export interface FutPulseModerationReport {
   reason: FutPulseReportReason;
   description: string | null;
   status: "pending" | "reviewed" | "dismissed";
-  createdAt: number;
-  reviewedAt: number | null;
+  createdAt: string;
+  reviewedAt: string | null;
   reviewedBy: string | null;
   postContent: string;
   postAuthorId: string;
