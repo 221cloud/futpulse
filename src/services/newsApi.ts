@@ -10,6 +10,7 @@ export interface NewsArticle {
 
 interface NewsRow {
   row_id?: string | number;
+  created_at?: string;
   titre?: string;
   contenu?: string;
   categorie?: string;
@@ -59,7 +60,7 @@ export async function getNewsArticles(): Promise<NewsArticle[]> {
       category: (row.categorie ?? "FOOTBALL").trim(),
       imageUrl: row.image_url?.trim() || null,
       source: (row.source ?? "").trim(),
-      publishedAt: (row.date_publication ?? "").trim()
+      publishedAt: (row.date_publication || row.created_at || "").trim()
     }))
     .sort((a, b) => {
       const dateA = Date.parse(a.publishedAt);
