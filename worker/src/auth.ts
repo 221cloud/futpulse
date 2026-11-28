@@ -114,6 +114,16 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const user = await currentUser(request, db);
     return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null, bio: user.bio ?? "", profilePublic: Boolean(user.profile_public), createdAt: user.created_at } : null }, 200, origin);
   }
+  if (request.method === "GET" && route.startsWith("posts/comments/")) {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const postId = route.slice("posts/comments/".length);
+    if (!/^[0-9a-f-]{36}$/i.test(postId)) return reply({ error: "post_not_found" }, 404, origin);
+    const post = await db.prepare("SELECT p.id FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND (p.author_id = ? OR u.profile_public = 1)").bind(postId, viewer.id).first<{ id: string }>();
+    if (!post) return reply({ error: "post_not_found" }, 404, origin);
+    const result = await db.prepare("SELECT c.id, c.post_id AS postId, c.user_id AS userId, c.content, c.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_post_comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.created_at ASC LIMIT 100").bind(postId).all<{ id: string; postId: string; userId: string; content: string; createdAt: number; authorName: string; authorAvatar: string | null }>();
+    return reply({ comments: result.results ?? [] }, 200, origin);
+  }
   if (request.method === "GET" && (route === "posts/feed" || route === "posts/mine" || route.startsWith("posts/user/"))) {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
@@ -162,6 +172,30 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const id = crypto.randomUUID();
     await db.prepare("INSERT INTO community_posts (id, author_id, content, category, match_label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, user.id, content, category, matchLabel || null, now, now).run();
     return reply({ post: { id, authorId: user.id, content, category, matchLabel: matchLabel || null, createdAt: now, authorName: user.display_name, authorAvatar: user.avatar_data ?? null, likeCount: 0, likedByMe: false } }, 201, origin);
+  }
+
+  if (route === "posts/comments") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const postId = typeof body.postId === "string" ? body.postId : "";
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    if (!/^[0-9a-f-]{36}$/i.test(postId)) return reply({ error: "post_not_found" }, 404, origin);
+    if (!content || content.length > 500) return reply({ error: "invalid_comment_content" }, 400, origin);
+    const post = await db.prepare("SELECT p.id FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND (p.author_id = ? OR u.profile_public = 1)").bind(postId, viewer.id).first<{ id: string }>();
+    if (!post) return reply({ error: "post_not_found" }, 404, origin);
+    const id = crypto.randomUUID();
+    await db.prepare("INSERT INTO community_post_comments (id, post_id, user_id, content, created_at) VALUES (?, ?, ?, ?, ?)").bind(id, postId, viewer.id, content, now).run();
+    return reply({ comment: { id, postId, userId: viewer.id, content, createdAt: now, authorName: viewer.display_name, authorAvatar: viewer.avatar_data ?? null } }, 201, origin);
+  }
+
+  if (route === "posts/comments/delete") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const commentId = typeof body.commentId === "string" ? body.commentId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(commentId)) return reply({ error: "comment_not_found" }, 404, origin);
+    const result = await db.prepare("DELETE FROM community_post_comments WHERE id = ? AND user_id = ?").bind(commentId, viewer.id).run();
+    if (!result.meta?.changes) return reply({ error: "comment_not_found_or_not_owner" }, 404, origin);
+    return reply({ status: "comment_deleted" }, 200, origin);
   }
 
   if (route === "posts/like" || route === "posts/unlike") {
