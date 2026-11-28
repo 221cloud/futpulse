@@ -234,6 +234,38 @@ export async function reviewAdminReport(reportId: string, action: "dismiss" | "d
   await request("admin/reports/review", { reportId, action });
 }
 
+export type ManualFixtureStatus = "scheduled" | "live" | "finished" | "postponed" | "cancelled";
+export interface FutPulseManualFixture {
+  id: string;
+  competitionName: string;
+  season: string;
+  roundLabel: string | null;
+  kickoffAt: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  venue: string | null;
+  status: ManualFixtureStatus;
+  homeScore: number | null;
+  awayScore: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+export async function getAdminManualFixtures(): Promise<FutPulseManualFixture[]> {
+  const result = await request<{ fixtures: FutPulseManualFixture[] }>("admin/manual-fixtures");
+  return result.fixtures ?? [];
+}
+export async function createAdminManualFixture(input: {
+  competitionName: string; season: string; roundLabel: string; kickoffAt: string;
+  homeTeamName: string; awayTeamName: string; venue: string;
+}): Promise<void> {
+  await request("admin/manual-fixtures", input);
+}
+export async function updateAdminManualFixture(input: {
+  fixtureId: string; status: ManualFixtureStatus; homeScore: string; awayScore: string;
+}): Promise<void> {
+  await request("admin/manual-fixtures/update", input);
+}
+
 export interface FutPulseAdminStats {
   users: number;
   publicProfiles: number;
