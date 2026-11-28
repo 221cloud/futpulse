@@ -6,8 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile } from "./services/authApi";
-import { getPublicProfile, getCurrentUser, followUser, unfollowUser } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser } from "./services/authApi";
 
 type Language = "FR" | "EN";
