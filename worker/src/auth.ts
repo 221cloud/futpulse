@@ -85,7 +85,7 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 function normalizedEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
-async function currentUser(request: Request, db: D1Database): Promise<{ id: string; email: string; display_name: string; email_verified_at: number | null } | null> {
+async function currentUser(request: Request, db: D1Database): Promise<{ id: string; email: string; display_name: string; email_verified_at: number | null; avatar_data: string | null } | null> {
   const raw = request.headers.get("Cookie")?.match(/(?:^|;\s*)futpulse_session=([^;]+)/)?.[1];
   if (!raw) return null;
   const tokenHash = await digest(raw);
