@@ -14,6 +14,7 @@ export interface AuthEnv {
   API_ORIGIN?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM?: string;
+  ADMIN_BOOTSTRAP_TOKEN?: string;
 }
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
 function reply(data: unknown, status = 200, origin?: string, cookie?: string): Response {
@@ -86,12 +87,12 @@ async function readBody(request: Request): Promise<Record<string, unknown> | nul
 function normalizedEmail(value: unknown): string {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
-async function currentUser(request: Request, db: D1Database): Promise<{ id: string; email: string; display_name: string; email_verified_at: number | null; avatar_data: string | null; bio: string; profile_public: number; created_at: number } | null> {
+async function currentUser(request: Request, db: D1Database): Promise<{ id: string; email: string; display_name: string; email_verified_at: number | null; avatar_data: string | null; bio: string; profile_public: number; is_admin: number; created_at: number } | null> {
   const raw = request.headers.get("Cookie")?.match(/(?:^|;\s*)futpulse_session=([^;]+)/)?.[1];
   if (!raw) return null;
   const tokenHash = await digest(raw);
   const now = Math.floor(Date.now() / 1000);
-  return db.prepare("SELECT users.id, users.email, users.display_name, users.email_verified_at, users.avatar_data, users.bio, users.profile_public, users.created_at FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ?").bind(tokenHash, now).first();
+  return db.prepare("SELECT users.id, users.email, users.display_name, users.email_verified_at, users.avatar_data, users.bio, users.profile_public, users.is_admin, users.created_at FROM sessions JOIN users ON users.id = sessions.user_id WHERE sessions.token_hash = ? AND sessions.expires_at > ?").bind(tokenHash, now).first();
 }
 export async function handleAuth(request: Request, env: AuthEnv, origin?: string): Promise<Response | null> {
   const url = new URL(request.url);
@@ -112,7 +113,7 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
   }
   if (request.method === "GET" && route === "me") {
     const user = await currentUser(request, db);
-    return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null, bio: user.bio ?? "", profilePublic: Boolean(user.profile_public), createdAt: user.created_at } : null }, 200, origin);
+    return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null, bio: user.bio ?? "", profilePublic: Boolean(user.profile_public), isAdmin: Boolean(user.is_admin), createdAt: user.created_at } : null }, 200, origin);
   }
   if (request.method === "GET" && route === "stats") {
     const viewer = await currentUser(request, db);
@@ -138,6 +139,41 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
       commentsReceived,
       interactionsReceived: likesReceived + commentsReceived,
       interactionsLast30Days: recentInteractions
+    } }, 200, origin);
+  }
+  if (request.method === "GET" && route === "admin/status") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const adminCount = await db.prepare("SELECT COUNT(*) AS count FROM users WHERE is_admin = 1").first<{ count: number }>();
+    const hasAdmin = (adminCount?.count ?? 0) > 0;
+    return reply({ isAdmin: Boolean(viewer.is_admin), bootstrapAvailable: !hasAdmin && Boolean(env.ADMIN_BOOTSTRAP_TOKEN) }, 200, origin);
+  }
+  if (request.method === "GET" && route === "admin/stats") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const since = now - 30 * 24 * 60 * 60;
+    const [users, publicProfiles, posts, likes, comments, follows, newUsers, recentPosts, recentInteractions] = await Promise.all([
+      db.prepare("SELECT COUNT(*) AS count FROM users").first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM users WHERE profile_public = 1").first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_posts").first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_likes").first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_comments").first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM user_follows").first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM users WHERE created_at >= ?").bind(since).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_posts WHERE created_at >= ?").bind(since).first<{ count: number }>(),
+      db.prepare("SELECT (SELECT COUNT(*) FROM community_post_likes WHERE created_at >= ?) + (SELECT COUNT(*) FROM community_post_comments WHERE created_at >= ?) AS count").bind(since, since).first<{ count: number }>()
+    ]);
+    return reply({ stats: {
+      users: users?.count ?? 0,
+      publicProfiles: publicProfiles?.count ?? 0,
+      posts: posts?.count ?? 0,
+      likes: likes?.count ?? 0,
+      comments: comments?.count ?? 0,
+      follows: follows?.count ?? 0,
+      newUsersLast30Days: newUsers?.count ?? 0,
+      postsLast30Days: recentPosts?.count ?? 0,
+      interactionsLast30Days: recentInteractions?.count ?? 0
     } }, 200, origin);
   }
   if (request.method === "GET" && route === "notifications") {
@@ -194,6 +230,17 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405, origin);
   const body = await readBody(request);
   if (!body) return reply({ error: "invalid_json" }, 400, origin);
+
+  if (route === "admin/bootstrap") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!env.ADMIN_BOOTSTRAP_TOKEN || typeof body.token !== "string" || !constantTimeEqual(body.token, env.ADMIN_BOOTSTRAP_TOKEN)) {
+      return reply({ error: "invalid_bootstrap_token" }, 403, origin);
+    }
+    const result = await db.prepare("UPDATE users SET is_admin = 1 WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)").bind(viewer.id).run();
+    if ((result.meta?.changes ?? 0) !== 1) return reply({ error: "admin_already_configured" }, 409, origin);
+    return reply({ status: "admin_activated" }, 200, origin);
+  }
 
   if (route === "notifications/read") {
     const viewer = await currentUser(request, db);
