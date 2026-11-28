@@ -206,6 +206,23 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = await db.prepare("SELECT c.id, c.post_id AS postId, c.user_id AS userId, c.content, c.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_post_comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.created_at ASC LIMIT 100").bind(postId).all<{ id: string; postId: string; userId: string; content: string; createdAt: number; authorName: string; authorAvatar: string | null }>();
     return reply({ comments: result.results ?? [] }, 200, origin);
   }
+  if (request.method === "GET" && route === "community/members") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const result = await db.prepare(
+      "SELECT u.id, u.display_name AS displayName, u.avatar_data AS avatarData, u.bio, " +
+      "(SELECT COUNT(*) FROM user_follows f WHERE f.followed_id = u.id) AS followerCount, " +
+      "(SELECT COUNT(*) FROM community_posts p WHERE p.author_id = u.id) AS postCount, " +
+      "EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_id = ? AND f.followed_id = u.id) AS isFollowing " +
+      "FROM users u WHERE u.profile_public = 1 AND u.id != ? ORDER BY u.created_at DESC LIMIT 100"
+    ).bind(viewer.id, viewer.id).all<{
+      id: string; displayName: string; avatarData: string | null; bio: string | null;
+      followerCount: number; postCount: number; isFollowing: number;
+    }>();
+    return reply({ members: (result.results ?? []).map((member) => ({
+      ...member, bio: member.bio ?? "", isFollowing: Boolean(member.isFollowing)
+    })) }, 200, origin);
+  }
   if (request.method === "GET" && (route === "posts/feed" || route === "posts/mine" || route.startsWith("posts/user/"))) {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
