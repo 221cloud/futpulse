@@ -1066,7 +1066,7 @@ function PublicProfilePage({ userId, language }: { userId: string; language: Lan
               <p>{post.content}</p>
               <PostReactions post={post} language={language} />
               <PostComments post={post} language={language} />
-              {viewer.id !== post.authorId && <PostReport post={post} language={language} />}
+              {viewer && viewer.id !== post.authorId && <PostReport post={post} language={language} />}
             </article>)}
           </div>
         </section>
