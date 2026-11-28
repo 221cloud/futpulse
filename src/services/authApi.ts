@@ -3,6 +3,7 @@ export interface FutPulseUser {
   email: string;
   displayName: string;
   emailVerified: boolean;
+  avatarData?: string | null;
 }
 const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
 async function request<T>(path: string, body?: Record<string, string>): Promise<T> {
@@ -36,4 +37,8 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 export async function resetAccountPassword(token: string, password: string): Promise<void> {
   await request("reset-password", { token, password });
+}
+export async function updateAccountProfile(displayName: string, avatarData: string): Promise<FutPulseUser> {
+  const result = await request<{ user: FutPulseUser }>("profile", { displayName, avatarData });
+  return result.user;
 }
