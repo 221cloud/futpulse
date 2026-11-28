@@ -6,8 +6,8 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "community" | "favorites" | "profile";
@@ -195,6 +195,7 @@ function App() {
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} aria-label={t.search} />
             <kbd>⌘ K</kbd>
           </label>
+          <NotificationCenter language={language} onNavigate={() => setTab("community")} />
           <button className="language-button" onClick={() => setLanguage(language === "FR" ? "EN" : "FR")} aria-label="Change language">{language} <span>⌄</span></button>
           <button className="avatar-button" onClick={() => setTab("profile")} aria-label={t.profile}>DS</button>
         </div>
@@ -310,6 +311,91 @@ function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favo
 }
 
 
+
+
+function NotificationCenter({ language, onNavigate }: { language: Language; onNavigate: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<FutPulseNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const fr = language === "FR";
+
+  const refresh = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await getNotifications();
+      setNotifications(result.notifications);
+      setUnreadCount(result.unreadCount);
+    } catch {
+      setError(fr ? "Notifications indisponibles." : "Notifications unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  const toggle = () => {
+    const next = !open;
+    setOpen(next);
+    if (next) void refresh();
+  };
+
+  const markRead = async (item: FutPulseNotification) => {
+    if (!item.readAt) {
+      try {
+        await markNotificationRead(item.id);
+        setNotifications((items) => items.map((entry) => entry.id === item.id ? { ...entry, readAt: Math.floor(Date.now() / 1000) } : entry));
+        setUnreadCount((count) => Math.max(0, count - 1));
+      } catch {
+        setError(fr ? "Impossible de marquer comme lue." : "Could not mark as read.");
+        return;
+      }
+    }
+    setOpen(false);
+    onNavigate();
+  };
+
+  const markAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      const now = Math.floor(Date.now() / 1000);
+      setNotifications((items) => items.map((item) => ({ ...item, readAt: item.readAt ?? now })));
+      setUnreadCount(0);
+    } catch {
+      setError(fr ? "Impossible de tout marquer comme lu." : "Could not mark all as read.");
+    }
+  };
+
+  const notificationText = (item: FutPulseNotification) => item.type === "follow"
+    ? (fr ? "a commencé à vous suivre." : "started following you.")
+    : item.type === "like"
+      ? (fr ? "a aimé votre publication." : "liked your post.")
+      : (fr ? "a commenté votre publication." : "commented on your post.");
+
+  return <div className="notification-center">
+    <button type="button" className="notification-bell" onClick={toggle} aria-label={fr ? "Notifications" : "Notifications"} aria-expanded={open}>
+      <span aria-hidden="true">♧</span>
+      {unreadCount > 0 && <b>{unreadCount > 99 ? "99+" : unreadCount}</b>}
+    </button>
+    {open && <div className="notification-panel">
+      <div className="notification-panel-head">
+        <strong>{fr ? "Notifications" : "Notifications"}</strong>
+        {unreadCount > 0 && <button type="button" onClick={() => void markAllRead()}>{fr ? "Tout lire" : "Mark all read"}</button>}
+      </div>
+      {loading && <p className="notification-empty">{fr ? "Chargement…" : "Loading…"}</p>}
+      {!loading && notifications.length === 0 && <p className="notification-empty">{fr ? "Aucune notification pour le moment." : "No notifications yet."}</p>}
+      {!loading && notifications.map((item) => <button type="button" key={item.id} className={item.readAt ? "notification-item" : "notification-item unread"} onClick={() => void markRead(item)}>
+        <span className="notification-avatar">{item.actorAvatar ? <img src={item.actorAvatar} alt="" /> : item.actorName.slice(0, 2).toUpperCase()}</span>
+        <span className="notification-copy"><strong>{item.actorName}</strong> {notificationText(item)}<small>{new Date(item.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></span>
+        {!item.readAt && <i aria-label={fr ? "Non lue" : "Unread"} />}
+      </button>)}
+      {error && <p className="notification-error" role="alert">{error}</p>}
+    </div>}
+  </div>;
+}
 
 function PostReactions({ post, language }: { post: FutPulsePost; language: Language }) {
   const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
