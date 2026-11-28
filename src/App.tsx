@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -311,6 +311,41 @@ function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favo
 
 
 
+function PostReactions({ post, language }: { post: FutPulsePost; language: Language }) {
+  const [likeCount, setLikeCount] = useState(post.likeCount ?? 0);
+  const [liked, setLiked] = useState(Boolean(post.likedByMe));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const fr = language === "FR";
+
+  useEffect(() => {
+    setLikeCount(post.likeCount ?? 0);
+    setLiked(Boolean(post.likedByMe));
+  }, [post.likeCount, post.likedByMe]);
+
+  const toggleLike = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      const result = liked ? await unlikeCommunityPost(post.id) : await likeCommunityPost(post.id);
+      setLikeCount(result.likeCount);
+      setLiked(result.likedByMe);
+    } catch {
+      setError(fr ? "Impossible de modifier le J’aime. Réessaie." : "Could not update your like. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <div className="community-post-actions">
+    <button type="button" className={liked ? "community-like-button liked" : "community-like-button"} onClick={toggleLike} disabled={busy} aria-pressed={liked}>
+      <span aria-hidden="true">{liked ? "♥" : "♡"}</span> {liked ? (fr ? "J’aime" : "Liked") : (fr ? "J’aime" : "Like")} <strong>{likeCount}</strong>
+    </button>
+    {error && <small className="community-like-error" role="alert">{error}</small>}
+  </div>;
+}
+
 function CommunityPage({ language }: { language: Language }) {
   const [posts, setPosts] = useState<FutPulsePost[]>([]);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -391,6 +426,7 @@ function CommunityPage({ language }: { language: Language }) {
         </div>
         {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}
         <p>{post.content}</p>
+        <PostReactions post={post} language={language} />
       </article>)}
     </div>
   </section>;
@@ -580,7 +616,7 @@ function MyPosts({ language }: { language: Language }) {
       ? <p className="community-status">{fr ? "Tu n'as pas encore publié." : "You have not posted yet."}</p>
       : posts.map((post) => <article className="community-post" key={post.id}>
         <div className="community-post-head"><div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0,2).toUpperCase()}</div><div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div><span className="community-category">{post.category === "analysis" ? (fr ? "Analyse" : "Analysis") : post.category === "news" ? (fr ? "Actualité" : "News") : "Opinion"}</span></div>
-        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}<p>{post.content}</p>
+        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}<p>{post.content}</p><PostReactions post={post} language={language} />
       </article>)}
   </section>;
 }
