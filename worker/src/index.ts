@@ -127,8 +127,47 @@ export default {
         if (!allowedParams.includes(key)) return json({ error: "invalid_query_parameter", parameter: key }, 400, corsOrigin);
       }
       try {
-        const data = await fetchApiFootballFixtures(env.API_FOOTBALL_KEY, url.searchParams);
-        return json({ data, fetchedAt: new Date().toISOString(), stale: false }, 200, corsOrigin);
+        const providerData = await fetchApiFootballFixtures(env.API_FOOTBALL_KEY, url.searchParams);
+        let manualData: typeof providerData = [];
+        if (env.DB) {
+          try {
+            const manualResult = await env.DB.prepare(
+              "SELECT id, competition_name, season, kickoff_at, home_team_name, away_team_name, status, home_score, away_score, updated_at FROM manual_football_fixtures ORDER BY kickoff_at DESC LIMIT 200"
+            ).all<{
+              id: string; competition_name: string; season: string; kickoff_at: string;
+              home_team_name: string; away_team_name: string; status: string;
+              home_score: number | null; away_score: number | null; updated_at: number;
+            }>();
+            manualData = (manualResult.results ?? []).map((fixture) => ({
+              id: `manual-${fixture.id}`,
+              competitionId: `manual-${fixture.competition_name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+              competitionName: fixture.competition_name,
+              season: fixture.season,
+              kickoffAt: fixture.kickoff_at,
+              status: fixture.status,
+              homeTeam: { id: `manual-home-${fixture.id}`, name: fixture.home_team_name },
+              awayTeam: { id: `manual-away-${fixture.id}`, name: fixture.away_team_name },
+              homeScore: fixture.home_score,
+              awayScore: fixture.away_score,
+              updatedAt: new Date(fixture.updated_at * 1000).toISOString(),
+              source: "manual"
+            }));
+          } catch (error) {
+            console.warn("Lecture des rencontres manuelles impossible :", error);
+          }
+        }
+        const normalize = (value: string) => value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        const providerKeys = new Set(providerData.map((fixture) =>
+          [normalize(fixture.homeTeam.name), normalize(fixture.awayTeam.name), fixture.kickoffAt?.slice(0, 10) ?? ""].join("|")
+        ));
+        const uniqueManualData = manualData.filter((fixture) =>
+          !providerKeys.has([normalize(fixture.homeTeam.name), normalize(fixture.awayTeam.name), fixture.kickoffAt?.slice(0, 10) ?? ""].join("|"))
+        );
+        return json({
+          data: [...providerData, ...uniqueManualData],
+          fetchedAt: new Date().toISOString(),
+          stale: false
+        }, 200, corsOrigin);
       } catch (error) {
         if (error instanceof ApiFootballProviderError) {
           return json({
