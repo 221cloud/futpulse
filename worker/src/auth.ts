@@ -1,7 +1,8 @@
-interface D1Result { success: boolean; meta?: { changes?: number }; }
+interface D1Result<T = Record<string, unknown>> { success: boolean; meta?: { changes?: number }; results?: T[]; }
 interface D1Statement {
   bind(...values: unknown[]): D1Statement;
   first<T = Record<string, unknown>>(): Promise<T | null>;
+  all<T = Record<string, unknown>>(): Promise<D1Result<T>>;
   run(): Promise<D1Result>;
 }
 interface D1Database {
@@ -113,6 +114,21 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const user = await currentUser(request, db);
     return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null, bio: user.bio ?? "", profilePublic: Boolean(user.profile_public), createdAt: user.created_at } : null }, 200, origin);
   }
+  if (request.method === "GET" && (route === "posts/feed" || route === "posts/mine" || route.startsWith("posts/user/"))) {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const userId = route.startsWith("posts/user/") ? route.slice("posts/user/".length) : viewer.id;
+    if (!/^[0-9a-f-]{36}$/i.test(userId)) return reply({ error: "profile_not_found" }, 404, origin);
+    const target = await db.prepare("SELECT id, profile_public FROM users WHERE id = ?").bind(userId).first<{ id: string; profile_public: number }>();
+    if (!target || (target.id !== viewer.id && !target.profile_public)) return reply({ error: "profile_not_found" }, 404, origin);
+    let query = "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.author_id = ? ORDER BY p.created_at DESC LIMIT 50";
+    if (route === "posts/feed") {
+      query = "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_posts p JOIN users u ON u.id = p.author_id WHERE (p.author_id = ? OR (u.profile_public = 1 AND EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_id = ? AND f.followed_id = p.author_id))) ORDER BY p.created_at DESC LIMIT 50";
+    }
+    const statement = route === "posts/feed" ? db.prepare(query).bind(viewer.id, viewer.id) : db.prepare(query).bind(userId);
+    const result = await statement.all<{ id: string; authorId: string; content: string; category: string; matchLabel: string | null; createdAt: number; authorName: string; authorAvatar: string | null }>();
+    return reply({ posts: result.results ?? [] }, 200, origin);
+  }
   if (request.method === "GET" && route.startsWith("public/")) {
     const userId = route.slice("public/".length);
     if (!/^[0-9a-f-]{36}$/i.test(userId)) return reply({ error: "profile_not_found" }, 404, origin);
@@ -133,6 +149,20 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405, origin);
   const body = await readBody(request);
   if (!body) return reply({ error: "invalid_json" }, 400, origin);
+
+  if (route === "posts") {
+    const user = await currentUser(request, db);
+    if (!user) return reply({ error: "not_authenticated" }, 401, origin);
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    const category = typeof body.category === "string" ? body.category : "";
+    const matchLabel = typeof body.matchLabel === "string" ? body.matchLabel.trim() : "";
+    if (!content || content.length > 500) return reply({ error: "invalid_post_content" }, 400, origin);
+    if (!["opinion", "analysis", "news"].includes(category)) return reply({ error: "invalid_post_category" }, 400, origin);
+    if (matchLabel.length > 100) return reply({ error: "invalid_match_label" }, 400, origin);
+    const id = crypto.randomUUID();
+    await db.prepare("INSERT INTO community_posts (id, author_id, content, category, match_label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, user.id, content, category, matchLabel || null, now, now).run();
+    return reply({ post: { id, authorId: user.id, content, category, matchLabel: matchLabel || null, createdAt: now, authorName: user.display_name, authorAvatar: user.avatar_data ?? null } }, 201, origin);
+  }
 
   if (route === "follow" || route === "unfollow") {
     const viewer = await currentUser(request, db);
