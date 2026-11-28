@@ -114,6 +114,15 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const user = await currentUser(request, db);
     return reply({ user: user ? { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at), avatarData: user.avatar_data ?? null, bio: user.bio ?? "", profilePublic: Boolean(user.profile_public), createdAt: user.created_at } : null }, 200, origin);
   }
+  if (request.method === "GET" && route === "notifications") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const [items, unread] = await Promise.all([
+      db.prepare("SELECT n.id, n.type, n.post_id AS postId, n.comment_id AS commentId, n.created_at AS createdAt, n.read_at AS readAt, u.id AS actorId, u.display_name AS actorName, u.avatar_data AS actorAvatar FROM user_notifications n JOIN users u ON u.id = n.actor_id WHERE n.recipient_id = ? ORDER BY n.created_at DESC LIMIT 50").bind(viewer.id).all<{ id: string; type: "follow" | "like" | "comment"; postId: string | null; commentId: string | null; createdAt: number; readAt: number | null; actorId: string; actorName: string; actorAvatar: string | null }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM user_notifications WHERE recipient_id = ? AND read_at IS NULL").bind(viewer.id).first<{ count: number }>()
+    ]);
+    return reply({ notifications: items.results ?? [], unreadCount: unread?.count ?? 0 }, 200, origin);
+  }
   if (request.method === "GET" && route.startsWith("posts/comments/")) {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
@@ -160,6 +169,22 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
   const body = await readBody(request);
   if (!body) return reply({ error: "invalid_json" }, 400, origin);
 
+  if (route === "notifications/read") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const notificationId = typeof body.notificationId === "string" ? body.notificationId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(notificationId)) return reply({ error: "notification_not_found" }, 404, origin);
+    await db.prepare("UPDATE user_notifications SET read_at = ? WHERE id = ? AND recipient_id = ? AND read_at IS NULL").bind(now, notificationId, viewer.id).run();
+    return reply({ status: "notification_read" }, 200, origin);
+  }
+
+  if (route === "notifications/read-all") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    await db.prepare("UPDATE user_notifications SET read_at = ? WHERE recipient_id = ? AND read_at IS NULL").bind(now, viewer.id).run();
+    return reply({ status: "notifications_read" }, 200, origin);
+  }
+
   if (route === "posts") {
     const user = await currentUser(request, db);
     if (!user) return reply({ error: "not_authenticated" }, 401, origin);
@@ -185,6 +210,10 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!post) return reply({ error: "post_not_found" }, 404, origin);
     const id = crypto.randomUUID();
     await db.prepare("INSERT INTO community_post_comments (id, post_id, user_id, content, created_at) VALUES (?, ?, ?, ?, ?)").bind(id, postId, viewer.id, content, now).run();
+    const postOwner = await db.prepare("SELECT author_id FROM community_posts WHERE id = ?").bind(postId).first<{ author_id: string }>();
+    if (postOwner && postOwner.author_id !== viewer.id) {
+      await db.prepare("INSERT INTO user_notifications (id, recipient_id, actor_id, type, post_id, comment_id, created_at) VALUES (?, ?, ?, 'comment', ?, ?, ?)").bind(crypto.randomUUID(), postOwner.author_id, viewer.id, postId, id, now).run();
+    }
     return reply({ comment: { id, postId, userId: viewer.id, content, createdAt: now, authorName: viewer.display_name, authorAvatar: viewer.avatar_data ?? null } }, 201, origin);
   }
 
@@ -206,7 +235,10 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const post = await db.prepare("SELECT p.id, p.author_id FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND (p.author_id = ? OR u.profile_public = 1)").bind(postId, viewer.id).first<{ id: string; author_id: string }>();
     if (!post) return reply({ error: "post_not_found" }, 404, origin);
     if (route === "posts/like") {
-      await db.prepare("INSERT OR IGNORE INTO community_post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)").bind(postId, viewer.id, now).run();
+      const inserted = await db.prepare("INSERT OR IGNORE INTO community_post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)").bind(postId, viewer.id, now).run();
+      if ((inserted.meta?.changes ?? 0) > 0 && post.author_id !== viewer.id) {
+        await db.prepare("INSERT INTO user_notifications (id, recipient_id, actor_id, type, post_id, created_at) VALUES (?, ?, ?, 'like', ?, ?)").bind(crypto.randomUUID(), post.author_id, viewer.id, postId, now).run();
+      }
     } else {
       await db.prepare("DELETE FROM community_post_likes WHERE post_id = ? AND user_id = ?").bind(postId, viewer.id).run();
     }
@@ -226,7 +258,10 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (route === "follow") {
       const target = await db.prepare("SELECT id FROM users WHERE id = ? AND profile_public = 1").bind(targetId).first<{ id: string }>();
       if (!target) return reply({ error: "profile_not_found" }, 404, origin);
-      await db.prepare("INSERT OR IGNORE INTO user_follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)").bind(viewer.id, targetId, now).run();
+      const inserted = await db.prepare("INSERT OR IGNORE INTO user_follows (follower_id, followed_id, created_at) VALUES (?, ?, ?)").bind(viewer.id, targetId, now).run();
+      if ((inserted.meta?.changes ?? 0) > 0) {
+        await db.prepare("INSERT INTO user_notifications (id, recipient_id, actor_id, type, created_at) VALUES (?, ?, ?, 'follow', ?)").bind(crypto.randomUUID(), targetId, viewer.id, now).run();
+      }
     } else {
       await db.prepare("DELETE FROM user_follows WHERE follower_id = ? AND followed_id = ?").bind(viewer.id, targetId).run();
     }
