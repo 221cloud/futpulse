@@ -51,10 +51,20 @@ export interface FutPulsePublicProfile {
   avatarData: string | null;
   bio: string;
   createdAt: number;
+  followerCount: number;
+  followingCount: number;
+  isFollowing: boolean;
+}
+export async function followUser(userId: string): Promise<{ isFollowing: boolean; followerCount: number; followingCount: number }> {
+  return request("follow", { userId });
+}
+export async function unfollowUser(userId: string): Promise<{ isFollowing: boolean; followerCount: number; followingCount: number }> {
+  return request("unfollow", { userId });
 }
 export async function getPublicProfile(userId: string): Promise<FutPulsePublicProfile> {
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/public/${encodeURIComponent(userId)}`, {
     method: "GET",
+    credentials: "include",
     headers: { Accept: "application/json" }
   });
   const result = await response.json().catch(() => ({})) as { profile?: FutPulsePublicProfile; error?: string };
