@@ -496,3 +496,13 @@
 .my-posts-section{margin-top:32px}
 .my-posts-section .section-heading{margin-bottom:12px}
 .my-posts-section .section-heading h2{font-size:19px}
+
+
+.community-post-actions{display:flex;align-items:center;gap:10px;margin-top:15px;padding-top:12px;border-top:1px solid rgba(255,255,255,.06)}
+.community-like-button{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 10px;border:1px solid #2a3947;border-radius:6px;background:#111e29;color:#aebdca;font-size:10px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.community-like-button>span{font-size:15px;line-height:1;color:#aebdca}
+.community-like-button strong{color:#edf4f8;font-size:10px;font-variant-numeric:tabular-nums}
+.community-like-button.liked{border-color:rgba(255,94,125,.35);background:rgba(255,94,125,.09);color:#ff9aad}
+.community-like-button.liked>span{color:#ff6f8d}
+.community-like-button:disabled{opacity:.55;cursor:wait}
+.community-like-error{color:#ff9c9c;font-size:9px}
