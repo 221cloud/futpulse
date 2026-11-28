@@ -121,12 +121,12 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!/^[0-9a-f-]{36}$/i.test(userId)) return reply({ error: "profile_not_found" }, 404, origin);
     const target = await db.prepare("SELECT id, profile_public FROM users WHERE id = ?").bind(userId).first<{ id: string; profile_public: number }>();
     if (!target || (target.id !== viewer.id && !target.profile_public)) return reply({ error: "profile_not_found" }, 404, origin);
-    let query = "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.author_id = ? ORDER BY p.created_at DESC LIMIT 50";
+    let query = "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar, (SELECT COUNT(*) FROM community_post_likes l WHERE l.post_id = p.id) AS likeCount, EXISTS (SELECT 1 FROM community_post_likes l WHERE l.post_id = p.id AND l.user_id = ?) AS likedByMe FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.author_id = ? ORDER BY p.created_at DESC LIMIT 50";
     if (route === "posts/feed") {
-      query = "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_posts p JOIN users u ON u.id = p.author_id WHERE (p.author_id = ? OR (u.profile_public = 1 AND EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_id = ? AND f.followed_id = p.author_id))) ORDER BY p.created_at DESC LIMIT 50";
+      query = "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar, (SELECT COUNT(*) FROM community_post_likes l WHERE l.post_id = p.id) AS likeCount, EXISTS (SELECT 1 FROM community_post_likes l WHERE l.post_id = p.id AND l.user_id = ?) AS likedByMe FROM community_posts p JOIN users u ON u.id = p.author_id WHERE (p.author_id = ? OR (u.profile_public = 1 AND EXISTS (SELECT 1 FROM user_follows f WHERE f.follower_id = ? AND f.followed_id = p.author_id))) ORDER BY p.created_at DESC LIMIT 50";
     }
-    const statement = route === "posts/feed" ? db.prepare(query).bind(viewer.id, viewer.id) : db.prepare(query).bind(userId);
-    const result = await statement.all<{ id: string; authorId: string; content: string; category: string; matchLabel: string | null; createdAt: number; authorName: string; authorAvatar: string | null }>();
+    const statement = route === "posts/feed" ? db.prepare(query).bind(viewer.id, viewer.id, viewer.id) : db.prepare(query).bind(viewer.id, userId);
+    const result = await statement.all<{ id: string; authorId: string; content: string; category: string; matchLabel: string | null; createdAt: number; authorName: string; authorAvatar: string | null; likeCount: number; likedByMe: number }>();
     return reply({ posts: result.results ?? [] }, 200, origin);
   }
   if (request.method === "GET" && route.startsWith("public/")) {
@@ -162,6 +162,25 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const id = crypto.randomUUID();
     await db.prepare("INSERT INTO community_posts (id, author_id, content, category, match_label, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)").bind(id, user.id, content, category, matchLabel || null, now, now).run();
     return reply({ post: { id, authorId: user.id, content, category, matchLabel: matchLabel || null, createdAt: now, authorName: user.display_name, authorAvatar: user.avatar_data ?? null } }, 201, origin);
+  }
+
+  if (route === "posts/like" || route === "posts/unlike") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const postId = typeof body.postId === "string" ? body.postId : "";
+    if (!/^[0-9a-f-]{36}$/i.test(postId)) return reply({ error: "post_not_found" }, 404, origin);
+    const post = await db.prepare("SELECT p.id, p.author_id FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND (p.author_id = ? OR u.profile_public = 1)").bind(postId, viewer.id).first<{ id: string; author_id: string }>();
+    if (!post) return reply({ error: "post_not_found" }, 404, origin);
+    if (route === "posts/like") {
+      await db.prepare("INSERT OR IGNORE INTO community_post_likes (post_id, user_id, created_at) VALUES (?, ?, ?)").bind(postId, viewer.id, now).run();
+    } else {
+      await db.prepare("DELETE FROM community_post_likes WHERE post_id = ? AND user_id = ?").bind(postId, viewer.id).run();
+    }
+    const [count, relation] = await Promise.all([
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_likes WHERE post_id = ?").bind(postId).first<{ count: number }>(),
+      db.prepare("SELECT post_id FROM community_post_likes WHERE post_id = ? AND user_id = ?").bind(postId, viewer.id).first<{ post_id: string }>()
+    ]);
+    return reply({ likeCount: count?.count ?? 0, likedByMe: Boolean(relation) }, 200, origin);
   }
 
   if (route === "follow" || route === "unfollow") {
