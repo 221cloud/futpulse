@@ -6,8 +6,8 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, getPublicCommunityPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport, getAdminManualFixtures, createAdminManualFixture, updateAdminManualFixture } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulseCommunityMember, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport, FutPulseManualFixture, ManualFixtureStatus } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, getPublicCommunityPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport, getAdminManualFixtures, createAdminManualFixture, updateAdminManualFixture, getAdminManualFixtureEvents, createAdminManualFixtureEvent, deleteAdminManualFixtureEvent } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulseCommunityMember, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport, FutPulseManualFixture, ManualFixtureStatus, ManualFixtureEventType, FutPulseManualFixtureEvent } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "featured" | "community" | "favorites" | "profile";
@@ -1072,6 +1072,17 @@ function AdminManualFixtures({ language }: { language: Language }) {
   const [homeTeamName, setHomeTeamName] = useState("");
   const [awayTeamName, setAwayTeamName] = useState("");
   const [venue, setVenue] = useState("");
+  const [expandedFixtureId, setExpandedFixtureId] = useState("");
+  const [fixtureEvents, setFixtureEvents] = useState<Record<string, FutPulseManualFixtureEvent[]>>({});
+  const [eventDraft, setEventDraft] = useState({
+    teamSide: "home" as "home" | "away",
+    eventType: "goal" as ManualFixtureEventType,
+    minute: "",
+    addedTime: "",
+    playerName: "",
+    relatedPlayerName: "",
+    detail: ""
+  });
 
   const refresh = async () => setFixtures(await getAdminManualFixtures());
   useEffect(() => {
