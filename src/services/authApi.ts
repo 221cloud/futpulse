@@ -144,3 +144,28 @@ export async function createCommunityComment(postId: string, content: string): P
 export async function deleteCommunityComment(commentId: string): Promise<void> {
   await request("posts/comments/delete", { commentId });
 }
+
+export type FutPulseNotificationType = "follow" | "like" | "comment";
+export interface FutPulseNotification {
+  id: string;
+  type: FutPulseNotificationType;
+  postId: string | null;
+  commentId: string | null;
+  createdAt: number;
+  readAt: number | null;
+  actorId: string;
+  actorName: string;
+  actorAvatar: string | null;
+}
+
+export async function getNotifications(): Promise<{ notifications: FutPulseNotification[]; unreadCount: number }> {
+  return request("notifications");
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await request("notifications/read", { notificationId });
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await request("notifications/read-all", {});
+}
