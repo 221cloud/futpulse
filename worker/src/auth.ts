@@ -176,6 +176,17 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
       interactionsLast30Days: recentInteractions?.count ?? 0
     } }, 200, origin);
   }
+  if (request.method === "GET" && route === "admin/reports") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const status = url.searchParams.get("status") ?? "pending";
+    if (!["pending", "reviewed", "dismissed", "all"].includes(status)) return reply({ error: "invalid_report_status" }, 400, origin);
+    const filter = status === "all" ? "" : "WHERE r.status = ?";
+    const statement = db.prepare(`SELECT r.id, r.post_id AS postId, r.reporter_id AS reporterId, r.reason, r.description, r.status, r.created_at AS createdAt, r.reviewed_at AS reviewedAt, r.reviewed_by AS reviewedBy, p.content AS postContent, p.author_id AS postAuthorId, author.display_name AS postAuthorName, reporter.display_name AS reporterName FROM moderation_reports r JOIN community_posts p ON p.id = r.post_id JOIN users author ON author.id = p.author_id JOIN users reporter ON reporter.id = r.reporter_id ${filter} ORDER BY r.created_at DESC LIMIT 100`);
+    const result = status === "all" ? await statement.all() : await statement.bind(status).all();
+    return reply({ reports: result.results ?? [] }, 200, origin);
+  }
   if (request.method === "GET" && route === "notifications") {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
@@ -240,6 +251,43 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = await db.prepare("UPDATE users SET is_admin = 1 WHERE id = ? AND NOT EXISTS (SELECT 1 FROM users WHERE is_admin = 1)").bind(viewer.id).run();
     if ((result.meta?.changes ?? 0) !== 1) return reply({ error: "admin_already_configured" }, 409, origin);
     return reply({ status: "admin_activated" }, 200, origin);
+  }
+
+  if (route === "posts/report") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const postId = typeof body.postId === "string" ? body.postId : "";
+    const reason = typeof body.reason === "string" ? body.reason : "";
+    const description = typeof body.description === "string" ? body.description.trim() : "";
+    const allowedReasons = ["spam", "harassment", "hate_speech", "false_information", "inappropriate_content", "other"];
+    if (!/^[0-9a-f-]{36}$/i.test(postId)) return reply({ error: "post_not_found" }, 404, origin);
+    if (!allowedReasons.includes(reason)) return reply({ error: "invalid_report_reason" }, 400, origin);
+    if (description.length > 500) return reply({ error: "report_description_too_long" }, 400, origin);
+    const post = await db.prepare("SELECT p.id, p.author_id FROM community_posts p JOIN users u ON u.id = p.author_id WHERE p.id = ? AND (p.author_id = ? OR u.profile_public = 1)").bind(postId, viewer.id).first<{ id: string; author_id: string }>();
+    if (!post) return reply({ error: "post_not_found" }, 404, origin);
+    if (post.author_id === viewer.id) return reply({ error: "cannot_report_own_post" }, 400, origin);
+    const result = await db.prepare("INSERT OR IGNORE INTO moderation_reports (id, post_id, reporter_id, reason, description) VALUES (?, ?, ?, ?, ?)").bind(crypto.randomUUID(), postId, viewer.id, reason, description || null).run();
+    if ((result.meta?.changes ?? 0) === 0) return reply({ error: "already_reported" }, 409, origin);
+    return reply({ status: "report_submitted" }, 201, origin);
+  }
+
+  if (route === "admin/reports/review") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    if (!viewer.is_admin) return reply({ error: "admin_required" }, 403, origin);
+    const reportId = typeof body.reportId === "string" ? body.reportId : "";
+    const action = typeof body.action === "string" ? body.action : "";
+    if (!/^[0-9a-f-]{36}$/i.test(reportId)) return reply({ error: "report_not_found" }, 404, origin);
+    if (!["dismiss", "delete_post"].includes(action)) return reply({ error: "invalid_moderation_action" }, 400, origin);
+    const report = await db.prepare("SELECT id, post_id FROM moderation_reports WHERE id = ? AND status = 'pending'").bind(reportId).first<{ id: string; post_id: string }>();
+    if (!report) return reply({ error: "report_not_found_or_already_reviewed" }, 404, origin);
+    if (action === "dismiss") {
+      await db.prepare("UPDATE moderation_reports SET status = 'dismissed', reviewed_at = ?, reviewed_by = ? WHERE id = ? AND status = 'pending'").bind(now, viewer.id, reportId).run();
+      return reply({ status: "report_dismissed" }, 200, origin);
+    }
+    await db.prepare("UPDATE moderation_reports SET status = 'reviewed', reviewed_at = ?, reviewed_by = ? WHERE id = ? AND status = 'pending'").bind(now, viewer.id, reportId).run();
+    await db.prepare("DELETE FROM community_posts WHERE id = ?").bind(report.post_id).run();
+    return reply({ status: "post_deleted" }, 200, origin);
   }
 
   if (route === "notifications/read") {
