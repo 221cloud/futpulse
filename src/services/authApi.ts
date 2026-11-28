@@ -114,3 +114,33 @@ export async function likeCommunityPost(postId: string): Promise<{ likeCount: nu
 export async function unlikeCommunityPost(postId: string): Promise<{ likeCount: number; likedByMe: boolean }> {
   return request("posts/unlike", { postId });
 }
+
+export interface FutPulseComment {
+  id: string;
+  postId: string;
+  userId: string;
+  content: string;
+  createdAt: number;
+  authorName: string;
+  authorAvatar: string | null;
+}
+
+export async function getCommunityPostComments(postId: string): Promise<FutPulseComment[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/posts/comments/${encodeURIComponent(postId)}`, {
+    method: "GET",
+    credentials: "include",
+    headers: { Accept: "application/json" }
+  });
+  const result = await response.json().catch(() => ({})) as { comments?: FutPulseComment[]; error?: string };
+  if (!response.ok) throw new Error(result.error ?? "comments_unavailable");
+  return result.comments ?? [];
+}
+
+export async function createCommunityComment(postId: string, content: string): Promise<FutPulseComment> {
+  const result = await request<{ comment: FutPulseComment }>("posts/comments", { postId, content });
+  return result.comment;
+}
+
+export async function deleteCommunityComment(commentId: string): Promise<void> {
+  await request("posts/comments/delete", { commentId });
+}
