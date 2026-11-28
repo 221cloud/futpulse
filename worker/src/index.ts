@@ -46,6 +46,51 @@ export default {
       provider: env.API_FOOTBALL_KEY ? "configured" : "not_configured",
       auth: env.DB ? "database_configured" : "not_configured"
     }, 200, corsOrigin);
+    const manualEventsMatch = url.pathname.match(/^\/api\/v1\/football\/manual-fixtures\/([0-9a-f-]{36})\/events$/i);
+    if (manualEventsMatch) {
+      if (!env.DB) return json({ error: "database_not_configured" }, 503, corsOrigin);
+      const fixtureId = manualEventsMatch[1];
+      const fixture = await env.DB.prepare(
+        "SELECT id, home_team_name, away_team_name FROM manual_football_fixtures WHERE id = ?"
+      ).bind(fixtureId).first<{ id: string; home_team_name: string; away_team_name: string }>();
+      if (!fixture) return json({ error: "fixture_not_found" }, 404, corsOrigin);
+      const result = await env.DB.prepare(
+        "SELECT team_side, event_type, minute, added_time, player_name, related_player_name, detail FROM manual_football_fixture_events WHERE fixture_id = ? ORDER BY minute ASC, COALESCE(added_time, 0) ASC, created_at ASC"
+      ).bind(fixtureId).all<{
+        team_side: "home" | "away"; event_type: string; minute: number; added_time: number | null;
+        player_name: string; related_player_name: string | null; detail: string | null;
+      }>();
+      const events = (result.results ?? []).map((event) => ({
+        time: { elapsed: event.minute, extra: event.added_time },
+        team: { name: event.team_side === "home" ? fixture.home_team_name : fixture.away_team_name },
+        player: { name: event.player_name },
+        assist: event.related_player_name ? { name: event.related_player_name } : undefined,
+        type: event.event_type === "substitution" ? "subst" : event.event_type === "var" ? "VAR" :
+          event.event_type.includes("penalty") ? "Goal" : event.event_type === "own_goal" ? "Goal" :
+          event.event_type === "goal" ? "Goal" : event.event_type === "yellow_card" ? "Card" :
+          event.event_type === "red_card" ? "Card" : event.event_type,
+        detail: event.detail ?? ({
+          own_goal: "But contre son camp",
+          penalty_scored: "Penalty marqué",
+          penalty_missed: "Penalty manqué",
+          yellow_card: "Carton jaune",
+          red_card: "Carton rouge",
+          substitution: "Remplacement",
+          var: "Arbitrage vidéo"
+        } as Record<string, string>)[event.event_type] ?? event.event_type
+      }));
+      return json({
+        data: {
+          lineups: [],
+          statistics: [],
+          events,
+          availability: { lineups: false, statistics: false, events: true }
+        },
+        fetchedAt: new Date().toISOString(),
+        cached: false,
+        stale: false
+      }, 200, corsOrigin);
+    }
     const detailsMatch = url.pathname.match(/^\/api\/v1\/football\/fixtures\/(\d+)\/details$/);
     if (detailsMatch) {
       if (!env.API_FOOTBALL_KEY) return json({
