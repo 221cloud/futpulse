@@ -34,7 +34,8 @@ export default {
       try {
         const authResponse = await handleAuth(request, env, corsOrigin);
         if (authResponse) return authResponse;
-      } catch {
+      } catch (error) {
+        console.error("Erreur inscription FutPulse :", error);
         return json({ error: "auth_service_unavailable" }, 500, corsOrigin);
       }
     }
