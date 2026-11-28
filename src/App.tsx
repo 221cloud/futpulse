@@ -23,6 +23,7 @@ type Match = {
   status: "live" | "upcoming" | "finished";
   featured?: boolean;
   kickoffAt?: string | null;
+  source?: string;
 };
 
 const copy = {
@@ -111,7 +112,8 @@ function App() {
               : "Horaire à confirmer",
           status: fixture.status === "live" ? "live" as const : fixture.status === "finished" ? "finished" as const : "upcoming" as const,
           featured: false,
-          kickoffAt: fixture.kickoffAt
+          kickoffAt: fixture.kickoffAt,
+          source: fixture.source
         }));
         formatted.sort((a, b) => {
           const rank = { live: 0, upcoming: 1, finished: 2 };
@@ -1307,6 +1309,11 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
 
   useEffect(() => {
     let cancelled = false;
+    if (match.source === "manual") {
+      setDetails(null);
+      setDetailsStatus("ready");
+      return () => { cancelled = true; };
+    }
     setDetailsStatus("loading");
     getMatchDetails(match.id).then((data) => {
       if (cancelled) return;
@@ -1400,11 +1407,15 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
         <div><span className="modal-crest">{match.away.slice(0,1)}</span><strong>{match.away}</strong></div>
       </div>
       <div className="modal-kickoff">{kickoff}</div>
-      <nav className="match-detail-tabs" aria-label="Rubriques du match">
-        {tabs.map((tab) => <button key={tab.id} className={activeSection === tab.id ? "match-detail-tab active" : "match-detail-tab"} onClick={() => setActiveSection(tab.id)}>{tab.label}</button>)}
-      </nav>
-      {detailsStatus === "loading" && <p className="modal-note">Chargement des informations du match…</p>}
-      {detailsStatus === "error" && <p className="modal-note">Impossible de charger les détails pour le moment. Réessaie dans quelques instants.</p>}
+      {match.source === "manual" ? (
+        <p className="modal-note">Rencontre saisie manuellement par l’administration. Les compositions, statistiques et événements ne sont pas encore disponibles dans le centre de match.</p>
+      ) : <>
+        <nav className="match-detail-tabs" aria-label="Rubriques du match">
+          {tabs.map((tab) => <button key={tab.id} className={activeSection === tab.id ? "match-detail-tab active" : "match-detail-tab"} onClick={() => setActiveSection(tab.id)}>{tab.label}</button>)}
+        </nav>
+        {detailsStatus === "loading" && <p className="modal-note">Chargement des informations du match…</p>}
+        {detailsStatus === "error" && <p className="modal-note">Impossible de charger les détails pour le moment. Réessaie dans quelques instants.</p>}
+      </>}
       {detailsStatus === "ready" && details && <>
         {activeSection === "resume" && <div className="match-resume">
           <div className="resume-section-title"><h3>Temps forts</h3><span>{events.length} événement(s)</span></div>
