@@ -492,3 +492,7 @@
  .community-composer-meta select,.community-composer-meta input{width:100%;min-height:40px}
  .community-composer-meta .account-submit{width:100%;margin-left:0}
 }
+
+.my-posts-section{margin-top:32px}
+.my-posts-section .section-heading{margin-bottom:12px}
+.my-posts-section .section-heading h2{font-size:19px}
