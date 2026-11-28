@@ -130,16 +130,34 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-    getNewsArticles()
-      .then((articles) => {
+    let loading = false;
+
+    const refreshNews = async () => {
+      if (loading) return;
+      loading = true;
+      try {
+        const articles = await getNewsArticles();
         if (cancelled) return;
         setNewsArticles(articles);
         setNewsStatus("ready");
-      })
-      .catch(() => {
-        if (!cancelled) setNewsStatus("error");
-      });
-    return () => { cancelled = true; };
+      } catch {
+        if (!cancelled && newsArticles.length === 0) {
+          setNewsStatus("error");
+        }
+      } finally {
+        loading = false;
+      }
+    };
+
+    void refreshNews();
+    const refreshInterval = window.setInterval(() => {
+      void refreshNews();
+    }, 60_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(refreshInterval);
+    };
   }, []);
 
   const filteredMatches = useMemo(() => {
