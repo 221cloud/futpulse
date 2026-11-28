@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { getFootballFixtures } from "./services/footballApi";
+import { getFootballFixtures, getManualFixtureEvents } from "./services/footballApi";
 import { getMatchDetails } from "./services/footballDetailsApi";
 import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
@@ -24,6 +24,7 @@ type Match = {
   featured?: boolean;
   kickoffAt?: string | null;
   source?: string;
+  manualFixtureId?: string;
 };
 
 const copy = {
@@ -113,7 +114,8 @@ function App() {
           status: fixture.status === "live" ? "live" as const : fixture.status === "finished" ? "finished" as const : "upcoming" as const,
           featured: false,
           kickoffAt: fixture.kickoffAt,
-          source: fixture.source
+          source: fixture.source,
+          manualFixtureId: fixture.source === "manual" ? String(fixture.id).replace(/^manual-/, "") : undefined
         }));
         formatted.sort((a, b) => {
           const rank = { live: 0, upcoming: 1, finished: 2 };
@@ -1310,8 +1312,13 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
   useEffect(() => {
     let cancelled = false;
     if (match.source === "manual") {
-      setDetails(null);
-      setDetailsStatus("ready");
+      if (!match.manualFixtureId) { setDetails(null); setDetailsStatus("error"); return () => { cancelled = true; }; }
+      setDetailsStatus("loading");
+      getManualFixtureEvents(match.manualFixtureId).then((data) => {
+        if (cancelled) return;
+        setDetails(data);
+        setDetailsStatus("ready");
+      }).catch(() => { if (!cancelled) setDetailsStatus("error"); });
       return () => { cancelled = true; };
     }
     setDetailsStatus("loading");
@@ -1323,7 +1330,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
       if (!cancelled) setDetailsStatus("error");
     });
     return () => { cancelled = true; };
-  }, [match.id, match.source]);
+  }, [match.id, match.source, match.manualFixtureId]);
 
   const lineups = details?.lineups ?? [];
   const stats = details?.statistics ?? [];
@@ -1407,9 +1414,9 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
         <div><span className="modal-crest">{match.away.slice(0,1)}</span><strong>{match.away}</strong></div>
       </div>
       <div className="modal-kickoff">{kickoff}</div>
-      {match.source === "manual" ? (
-        <p className="modal-note">Rencontre saisie manuellement par l’administration. Les compositions, statistiques et événements ne sont pas encore disponibles dans le centre de match.</p>
-      ) : <>
+      {match.source === "manual" ? <nav className="match-detail-tabs" aria-label="Rubriques du match">
+        {tabs.filter((tab) => tab.id === "resume" || tab.id === "evenements").map((tab) => <button key={tab.id} className={activeSection === tab.id ? "match-detail-tab active" : "match-detail-tab"} onClick={() => setActiveSection(tab.id)}>{tab.label}</button>)}
+      </nav> : <>
         <nav className="match-detail-tabs" aria-label="Rubriques du match">
           {tabs.map((tab) => <button key={tab.id} className={activeSection === tab.id ? "match-detail-tab active" : "match-detail-tab"} onClick={() => setActiveSection(tab.id)}>{tab.label}</button>)}
         </nav>
@@ -1445,7 +1452,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
           </div>}
         </div>}
 
-        {activeSection === "compositions" && <div className="detail-section lineup-section">
+        {match.source !== "manual" && activeSection === "compositions" && <div className="detail-section lineup-section">
           <div className="lineup-section-heading"><div><h3>Onze de départ</h3><p>Disposition officielle des joueurs sur le terrain</p></div></div>
           {!details.availability.lineups || lineups.length === 0
             ? <p className="detail-empty">Les compositions ne sont pas encore publiées pour cette rencontre.</p>
@@ -1480,7 +1487,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
             </>}
         </div>}
 
-        {activeSection === "statistiques" && <div className="detail-section">
+        {match.source !== "manual" && activeSection === "statistiques" && <div className="detail-section">
           <div className="resume-section-title"><h3>Statistiques du match</h3><span>Comparaison des deux équipes</span></div>
           {!details.availability.statistics ? <p className="detail-empty">Les statistiques ne sont pas encore disponibles.</p> : <div className="visual-statistics">
             <div className="visual-stat-head"><strong>{homeTeamName}</strong><strong>{awayTeamName}</strong></div>
