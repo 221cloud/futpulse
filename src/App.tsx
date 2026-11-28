@@ -6,8 +6,8 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, getPublicCommunityPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulseCommunityMember, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, getPublicCommunityPosts, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport, getAdminManualFixtures, createAdminManualFixture, updateAdminManualFixture } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulseCommunityMember, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport, FutPulseManualFixture, ManualFixtureStatus } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "featured" | "community" | "favorites" | "profile";
@@ -1038,6 +1038,7 @@ function AdminDashboard({ language }: { language: Language }) {
         <div><span>{fr ? "Publications (30 jours)" : "Posts (30 days)"}</span><strong>{stats.postsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
         <div><span>{fr ? "Interactions (30 jours)" : "Interactions (30 days)"}</span><strong>{stats.interactionsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
       </div>
+      <AdminManualFixtures language={language} />
       <AdminReportsQueue language={language} />
     </> : status.bootstrapAvailable ? <div className="account-card admin-bootstrap-card">
       <h3>{fr ? "Activer le premier administrateur" : "Activate the first administrator"}</h3>
@@ -1049,6 +1050,93 @@ function AdminDashboard({ language }: { language: Language }) {
         <button className="account-submit" type="submit" disabled={busy || token.length < 32}>{busy ? (fr ? "Activation…" : "Activating…") : (fr ? "Activer mon compte administrateur" : "Activate my administrator account")}</button>
       </form>
     </div> : null}
+    {error && <p className="account-error" role="alert">{error}</p>}
+    {message && <p className="account-message" role="status">{message}</p>}
+  </section>;
+}
+
+function AdminManualFixtures({ language }: { language: Language }) {
+  const fr = language === "FR";
+  const [fixtures, setFixtures] = useState<FutPulseManualFixture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [competitionName, setCompetitionName] = useState("Ligue 1 Sénégal");
+  const [season, setSeason] = useState("2026-2027");
+  const [roundLabel, setRoundLabel] = useState("");
+  const [kickoffAt, setKickoffAt] = useState("");
+  const [homeTeamName, setHomeTeamName] = useState("");
+  const [awayTeamName, setAwayTeamName] = useState("");
+  const [venue, setVenue] = useState("");
+
+  const refresh = async () => setFixtures(await getAdminManualFixtures());
+  useEffect(() => {
+    let cancelled = false;
+    getAdminManualFixtures().then((items) => { if (!cancelled) setFixtures(items); })
+      .catch(() => { if (!cancelled) setError(fr ? "Impossible de charger les rencontres." : "Could not load fixtures."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const createFixture = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await createAdminManualFixture({
+        competitionName, season, roundLabel,
+        kickoffAt: new Date(kickoffAt).toISOString(),
+        homeTeamName, awayTeamName, venue
+      });
+      setHomeTeamName(""); setAwayTeamName(""); setVenue(""); setRoundLabel(""); setKickoffAt("");
+      await refresh();
+      setMessage(fr ? "Rencontre créée." : "Fixture created.");
+    } catch (err) {
+      setError(err instanceof Error && err.message === "invalid_fixture_data"
+        ? (fr ? "Vérifie les informations de la rencontre." : "Please check the fixture details.")
+        : (fr ? "Création impossible. Réessaie." : "Could not create fixture. Please retry."));
+    } finally { setBusy(false); }
+  };
+
+  const updateFixture = async (event: FormEvent<HTMLFormElement>, fixtureId: string) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setMessage("");
+    const data = new FormData(event.currentTarget);
+    try {
+      await updateAdminManualFixture({
+        fixtureId,
+        status: String(data.get("status")) as ManualFixtureStatus,
+        homeScore: String(data.get("homeScore") ?? ""),
+        awayScore: String(data.get("awayScore") ?? "")
+      });
+      await refresh();
+      setMessage(fr ? "Rencontre mise à jour." : "Fixture updated.");
+    } catch {
+      setError(fr ? "Mise à jour impossible. Vérifie les scores." : "Update failed. Check the scores.");
+    } finally { setBusy(false); }
+  };
+
+  return <section className="admin-manual-fixtures">
+    <div className="section-heading"><div><div className="eyebrow">FOOTBALL DATA</div><h3>{fr ? "Gestion des rencontres manuelles" : "Manual fixture management"}</h3></div></div>
+    <form className="account-form" onSubmit={createFixture}>
+      <label>{fr ? "Compétition" : "Competition"}<input required maxLength={100} value={competitionName} onChange={(e) => setCompetitionName(e.target.value)} /></label>
+      <label>{fr ? "Saison" : "Season"}<input required maxLength={20} value={season} onChange={(e) => setSeason(e.target.value)} /></label>
+      <label>{fr ? "Journée / Tour" : "Round"}<input maxLength={50} value={roundLabel} onChange={(e) => setRoundLabel(e.target.value)} placeholder="Ex. Journée 4" /></label>
+      <label>{fr ? "Date et heure" : "Date and time"}<input required type="datetime-local" value={kickoffAt} onChange={(e) => setKickoffAt(e.target.value)} /></label>
+      <label>{fr ? "Équipe à domicile" : "Home team"}<input required maxLength={100} value={homeTeamName} onChange={(e) => setHomeTeamName(e.target.value)} /></label>
+      <label>{fr ? "Équipe à l'extérieur" : "Away team"}<input required maxLength={100} value={awayTeamName} onChange={(e) => setAwayTeamName(e.target.value)} /></label>
+      <label>{fr ? "Stade (facultatif)" : "Venue (optional)"}<input maxLength={120} value={venue} onChange={(e) => setVenue(e.target.value)} /></label>
+      <button className="account-submit" type="submit" disabled={busy}>{busy ? (fr ? "Enregistrement…" : "Saving…") : (fr ? "Ajouter la rencontre" : "Add fixture")}</button>
+    </form>
+    {loading ? <p className="community-status">{fr ? "Chargement des rencontres…" : "Loading fixtures…"}</p> : fixtures.length === 0
+      ? <p className="community-status">{fr ? "Aucune rencontre manuelle pour le moment." : "No manual fixtures yet."}</p>
+      : <div className="admin-fixture-list">{fixtures.map((fixture) => <form className="admin-fixture-row" key={fixture.id} onSubmit={(event) => updateFixture(event, fixture.id)}>
+        <div><strong>{fixture.homeTeamName} – {fixture.awayTeamName}</strong><small>{fixture.competitionName} · {fixture.season}{fixture.roundLabel ? " · " + fixture.roundLabel : ""}</small><small>{new Date(fixture.kickoffAt).toLocaleString(fr ? "fr-FR" : "en-GB")}</small></div>
+        <label>{fr ? "Statut" : "Status"}<select name="status" defaultValue={fixture.status}><option value="scheduled">{fr ? "Programmé" : "Scheduled"}</option><option value="live">{fr ? "En direct" : "Live"}</option><option value="finished">{fr ? "Terminé" : "Finished"}</option><option value="postponed">{fr ? "Reporté" : "Postponed"}</option><option value="cancelled">{fr ? "Annulé" : "Cancelled"}</option></select></label>
+        <label>{fr ? "Score domicile" : "Home score"}<input name="homeScore" type="number" min="0" max="99" defaultValue={fixture.homeScore ?? ""} /></label>
+        <label>{fr ? "Score extérieur" : "Away score"}<input name="awayScore" type="number" min="0" max="99" defaultValue={fixture.awayScore ?? ""} /></label>
+        <button className="account-secondary" type="submit" disabled={busy}>{fr ? "Enregistrer" : "Save"}</button>
+      </form>)}</div>}
     {error && <p className="account-error" role="alert">{error}</p>}
     {message && <p className="account-message" role="status">{message}</p>}
   </section>;
