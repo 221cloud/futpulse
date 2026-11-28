@@ -1112,6 +1112,52 @@ function AdminManualFixtures({ language }: { language: Language }) {
     } finally { setBusy(false); }
   };
 
+  const loadFixtureEvents = async (fixtureId: string) => {
+    const items = await getAdminManualFixtureEvents(fixtureId);
+    setFixtureEvents((current) => ({ ...current, [fixtureId]: items }));
+  };
+
+  const toggleFixtureEvents = async (fixtureId: string) => {
+    if (expandedFixtureId === fixtureId) { setExpandedFixtureId(""); return; }
+    setExpandedFixtureId(fixtureId); setError(""); setMessage("");
+    try { await loadFixtureEvents(fixtureId); }
+    catch { setError(fr ? "Impossible de charger les événements." : "Could not load events."); }
+  };
+
+  const createFixtureEvent = async (event: FormEvent<HTMLFormElement>, fixtureId: string) => {
+    event.preventDefault();
+    const minute = Number(eventDraft.minute);
+    const addedTime = eventDraft.addedTime.trim() ? Number(eventDraft.addedTime) : null;
+    if (!Number.isInteger(minute) || minute < 0 || minute > 130 ||
+      (addedTime !== null && (!Number.isInteger(addedTime) || addedTime < 0 || addedTime > 30)) ||
+      !eventDraft.playerName.trim()) {
+      setError(fr ? "Vérifie la minute et le nom du joueur." : "Check the minute and player name.");
+      return;
+    }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await createAdminManualFixtureEvent({
+        fixtureId, teamSide: eventDraft.teamSide, eventType: eventDraft.eventType,
+        minute, addedTime, playerName: eventDraft.playerName.trim(),
+        relatedPlayerName: eventDraft.relatedPlayerName.trim(), detail: eventDraft.detail.trim()
+      });
+      await loadFixtureEvents(fixtureId);
+      setEventDraft((current) => ({ ...current, minute: "", addedTime: "", playerName: "", relatedPlayerName: "", detail: "" }));
+      setMessage(fr ? "Événement ajouté." : "Event added.");
+    } catch { setError(fr ? "Impossible d'ajouter cet événement." : "Could not add this event."); }
+    finally { setBusy(false); }
+  };
+
+  const removeFixtureEvent = async (eventId: string, fixtureId: string) => {
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await deleteAdminManualFixtureEvent(eventId);
+      await loadFixtureEvents(fixtureId);
+      setMessage(fr ? "Événement supprimé." : "Event deleted.");
+    } catch { setError(fr ? "Impossible de supprimer cet événement." : "Could not delete this event."); }
+    finally { setBusy(false); }
+  };
+
   const updateFixture = async (event: FormEvent<HTMLFormElement>, fixtureId: string) => {
     event.preventDefault();
     setBusy(true); setError(""); setMessage("");
@@ -1144,13 +1190,38 @@ function AdminManualFixtures({ language }: { language: Language }) {
     </form>
     {loading ? <p className="community-status">{fr ? "Chargement des rencontres…" : "Loading fixtures…"}</p> : fixtures.length === 0
       ? <p className="community-status">{fr ? "Aucune rencontre manuelle pour le moment." : "No manual fixtures yet."}</p>
-      : <div className="admin-fixture-list">{fixtures.map((fixture) => <form className="admin-fixture-row" key={fixture.id} onSubmit={(event) => updateFixture(event, fixture.id)}>
+      : <div className="admin-fixture-list">{fixtures.map((fixture) => <div className="admin-fixture-entry" key={fixture.id}>
+        <form className="admin-fixture-row" onSubmit={(event) => updateFixture(event, fixture.id)}>
         <div><strong>{fixture.homeTeamName} – {fixture.awayTeamName}</strong><small>{fixture.competitionName} · {fixture.season}{fixture.roundLabel ? " · " + fixture.roundLabel : ""}</small><small>{new Date(fixture.kickoffAt).toLocaleString(fr ? "fr-FR" : "en-GB")}</small></div>
         <label>{fr ? "Statut" : "Status"}<select name="status" defaultValue={fixture.status}><option value="scheduled">{fr ? "Programmé" : "Scheduled"}</option><option value="live">{fr ? "En direct" : "Live"}</option><option value="finished">{fr ? "Terminé" : "Finished"}</option><option value="postponed">{fr ? "Reporté" : "Postponed"}</option><option value="cancelled">{fr ? "Annulé" : "Cancelled"}</option></select></label>
         <label>{fr ? "Score domicile" : "Home score"}<input name="homeScore" type="number" min="0" max="99" defaultValue={fixture.homeScore ?? ""} /></label>
         <label>{fr ? "Score extérieur" : "Away score"}<input name="awayScore" type="number" min="0" max="99" defaultValue={fixture.awayScore ?? ""} /></label>
         <button className="account-secondary" type="submit" disabled={busy}>{fr ? "Enregistrer" : "Save"}</button>
-      </form>)}</div>}
+        </form>
+        <button className="account-secondary" type="button" disabled={busy} onClick={() => void toggleFixtureEvents(fixture.id)}>{expandedFixtureId === fixture.id ? (fr ? "Masquer les événements" : "Hide events") : (fr ? "Gérer les événements" : "Manage events")}</button>
+        {expandedFixtureId === fixture.id && <div className="admin-fixture-events">
+          <h4>{fr ? "Événements du match" : "Match events"}</h4>
+          <form className="account-form" onSubmit={(event) => void createFixtureEvent(event, fixture.id)}>
+            <label>{fr ? "Équipe" : "Team"}<select value={eventDraft.teamSide} onChange={(e) => setEventDraft((current) => ({ ...current, teamSide: e.target.value as "home" | "away" }))}><option value="home">{fixture.homeTeamName}</option><option value="away">{fixture.awayTeamName}</option></select></label>
+            <label>{fr ? "Type d'événement" : "Event type"}<select value={eventDraft.eventType} onChange={(e) => setEventDraft((current) => ({ ...current, eventType: e.target.value as ManualFixtureEventType }))}>
+              <option value="goal">{fr ? "But" : "Goal"}</option><option value="own_goal">{fr ? "But contre son camp" : "Own goal"}</option><option value="penalty_scored">{fr ? "Penalty marqué" : "Penalty scored"}</option><option value="penalty_missed">{fr ? "Penalty manqué" : "Penalty missed"}</option><option value="yellow_card">{fr ? "Carton jaune" : "Yellow card"}</option><option value="red_card">{fr ? "Carton rouge" : "Red card"}</option><option value="substitution">{fr ? "Remplacement" : "Substitution"}</option><option value="var">VAR</option>
+            </select></label>
+            <label>{fr ? "Minute" : "Minute"}<input required type="number" min="0" max="130" value={eventDraft.minute} onChange={(e) => setEventDraft((current) => ({ ...current, minute: e.target.value }))} /></label>
+            <label>{fr ? "Temps additionnel" : "Added time"}<input type="number" min="0" max="30" value={eventDraft.addedTime} onChange={(e) => setEventDraft((current) => ({ ...current, addedTime: e.target.value }))} placeholder="Ex. 3" /></label>
+            <label>{fr ? "Joueur" : "Player"}<input required maxLength={100} value={eventDraft.playerName} onChange={(e) => setEventDraft((current) => ({ ...current, playerName: e.target.value }))} /></label>
+            <label>{fr ? "Joueur associé (facultatif)" : "Related player (optional)"}<input maxLength={100} value={eventDraft.relatedPlayerName} onChange={(e) => setEventDraft((current) => ({ ...current, relatedPlayerName: e.target.value }))} placeholder={eventDraft.eventType === "substitution" ? (fr ? "Joueur remplacé" : "Player substituted") : (fr ? "Passeur, par exemple" : "Assist, for example")} /></label>
+            <label>{fr ? "Détail (facultatif)" : "Detail (optional)"}<input maxLength={200} value={eventDraft.detail} onChange={(e) => setEventDraft((current) => ({ ...current, detail: e.target.value }))} /></label>
+            <button className="account-submit" type="submit" disabled={busy}>{busy ? (fr ? "Enregistrement…" : "Saving…") : (fr ? "Ajouter l'événement" : "Add event")}</button>
+          </form>
+          {!fixtureEvents[fixture.id] ? <p className="community-status">{fr ? "Chargement…" : "Loading…"}</p> : fixtureEvents[fixture.id].length === 0 ? <p className="community-status">{fr ? "Aucun événement enregistré." : "No events recorded."}</p> :
+            <ul className="admin-event-list">{fixtureEvents[fixture.id].map((item) => <li key={item.id}>
+              <span><strong>{item.minute}{item.addedTime !== null ? "+" + item.addedTime : ""}'</strong> · {item.teamSide === "home" ? fixture.homeTeamName : fixture.awayTeamName} · {({
+                goal: fr ? "But" : "Goal", own_goal: fr ? "But contre son camp" : "Own goal", penalty_scored: fr ? "Penalty marqué" : "Penalty scored", penalty_missed: fr ? "Penalty manqué" : "Penalty missed", yellow_card: fr ? "Carton jaune" : "Yellow card", red_card: fr ? "Carton rouge" : "Red card", substitution: fr ? "Remplacement" : "Substitution", var: "VAR"
+              } as Record<ManualFixtureEventType, string>)[item.eventType]} — {item.playerName}{item.relatedPlayerName ? " (" + item.relatedPlayerName + ")" : ""}{item.detail ? " · " + item.detail : ""}</span>
+              <button className="account-secondary" type="button" disabled={busy} onClick={() => void removeFixtureEvent(item.id, fixture.id)}>{fr ? "Supprimer" : "Delete"}</button>
+            </li>)}</ul>}
+        </div>}
+      </div>)}</div>}
     {error && <p className="account-error" role="alert">{error}</p>}
     {message && <p className="account-message" role="status">{message}</p>}
   </section>;
