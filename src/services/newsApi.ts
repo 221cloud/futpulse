@@ -63,8 +63,14 @@ export async function getNewsArticles(): Promise<NewsArticle[]> {
       publishedAt: (row.date_publication || row.created_at || "").trim()
     }))
     .sort((a, b) => {
-      const dateA = Date.parse(a.publishedAt);
-      const dateB = Date.parse(b.publishedAt);
-      return (Number.isFinite(dateB) ? dateB : 0) - (Number.isFinite(dateA) ? dateA : 0);
+      const parseTimestamp = (value: string) => {
+        const trimmed = value.trim();
+        const normalized = /^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}(:\\d{2})?$/.test(trimmed)
+          ? trimmed.replace(" ", "T")
+          : trimmed;
+        const timestamp = Date.parse(normalized);
+        return Number.isFinite(timestamp) ? timestamp : 0;
+      };
+      return parseTimestamp(b.publishedAt) - parseTimestamp(a.publishedAt);
     });
 }
