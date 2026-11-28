@@ -1365,7 +1365,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
                 {lineups.map((lineup, teamIndex) => (lineup.startXI ?? []).map((entry, playerIndex) => {
                   const position = getPlayerPosition(entry, lineup, teamIndex);
                   return <div className={teamIndex === 0 ? "pitch-player pitch-home-player" : "pitch-player pitch-away-player"} key={entry.player?.id ?? `${teamIndex}-${playerIndex}`} style={position}>
-                    <span>{entry.player?.number ?? "—"}</span><small>{entry.player?.name ?? "Joueur"}</small>
+                    <span className="pitch-player-avatar" aria-hidden="true">{(entry.player?.name ?? "J").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span><b className="pitch-player-number">{entry.player?.number ?? "—"}</b><small>{entry.player?.name ?? "Joueur"}</small><em>{entry.player?.pos ?? ""}</em>
                   </div>;
                 }))}
               </div>
@@ -1373,7 +1373,10 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
               <div className="bench-teams">{lineups.map((lineup, teamIndex) => <div className="bench-team" key={lineup.team?.name ?? teamIndex}>
                 <strong>{lineup.team?.name ?? (teamIndex === 0 ? match.home : match.away)}</strong>
                 {(lineup.substitutes ?? []).length === 0 ? <p className="detail-empty">Aucun remplaçant renseigné.</p> : (lineup.substitutes ?? []).map((entry, playerIndex) => <div className="bench-player" key={entry.player?.id ?? playerIndex}>
-                  <span>{entry.player?.number ?? "—"}</span><strong>{entry.player?.name ?? "Joueur"}</strong><small>{entry.player?.pos ?? ""}</small>
+                  <span className="bench-player-avatar" aria-hidden="true">{(entry.player?.name ?? "J").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</span>
+                  <span className="bench-player-number">{entry.player?.number ?? "—"}</span>
+                  <strong>{entry.player?.name ?? "Joueur"}</strong>
+                  <small>{entry.player?.pos ?? "Poste non renseigné"}</small>
                 </div>)}
               </div>)}</div>
             </>}
