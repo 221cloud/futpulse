@@ -54,6 +54,10 @@ export interface FutPulsePublicProfile {
   createdAt: number;
   followerCount: number;
   followingCount: number;
+  postCount: number;
+  likesReceived: number;
+  commentsReceived: number;
+  interactionsReceived: number;
   isFollowing: boolean;
 }
 export async function followUser(userId: string): Promise<{ isFollowing: boolean; followerCount: number; followingCount: number }> {
