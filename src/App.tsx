@@ -6,8 +6,8 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "community" | "favorites" | "profile";
@@ -346,6 +346,70 @@ function PostReactions({ post, language }: { post: FutPulsePost; language: Langu
   </div>;
 }
 
+function PostComments({ post, language }: { post: FutPulsePost; language: Language }) {
+  const [open, setOpen] = useState(false);
+  const [comments, setComments] = useState<FutPulseComment[]>([]);
+  const [viewerId, setViewerId] = useState("");
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const fr = language === "FR";
+
+  const toggleComments = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true); setLoading(true); setError("");
+    try {
+      const [items, viewer] = await Promise.all([getCommunityPostComments(post.id), getCurrentUser()]);
+      setComments(items); setViewerId(viewer?.id ?? "");
+    } catch { setError(fr ? "Impossible de charger les commentaires." : "Could not load comments."); }
+    finally { setLoading(false); }
+  };
+
+  const submitComment = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!content.trim() || busy) return;
+    setBusy(true); setError("");
+    try {
+      const created = await createCommunityComment(post.id, content);
+      setComments((current) => [...current, created]); setContent("");
+      if (!viewerId) { const viewer = await getCurrentUser(); setViewerId(viewer?.id ?? ""); }
+    } catch { setError(fr ? "Impossible d’envoyer le commentaire. Réessaie." : "Could not send comment. Try again."); }
+    finally { setBusy(false); }
+  };
+
+  const removeComment = async (commentId: string) => {
+    if (busy) return;
+    setBusy(true); setError("");
+    try { await deleteCommunityComment(commentId); setComments((current) => current.filter((item) => item.id !== commentId)); }
+    catch { setError(fr ? "Impossible de supprimer ce commentaire." : "Could not delete this comment."); }
+    finally { setBusy(false); }
+  };
+
+  return <div className="community-comments">
+    <button type="button" className="community-comments-toggle" onClick={toggleComments}>
+      {open ? (fr ? "Masquer les commentaires" : "Hide comments") : (fr ? "Commentaires" : "Comments")} <span>{open ? comments.length : "＋"}</span>
+    </button>
+    {open && <div className="community-comments-panel">
+      {loading && <small className="community-status">{fr ? "Chargement…" : "Loading…"}</small>}
+      {!loading && comments.length === 0 && <small className="community-status">{fr ? "Aucun commentaire pour le moment." : "No comments yet."}</small>}
+      {comments.map((comment) => <div className="community-comment" key={comment.id}>
+        <div className="community-comment-avatar">{comment.authorAvatar ? <img src={comment.authorAvatar} alt="" /> : comment.authorName.slice(0, 2).toUpperCase()}</div>
+        <div className="community-comment-body">
+          <div className="community-comment-meta"><strong>{comment.authorName}</strong><time>{new Date(comment.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</time></div>
+          <p>{comment.content}</p>
+          {comment.userId === viewerId && <button type="button" className="community-comment-delete" onClick={() => void removeComment(comment.id)} disabled={busy}>{fr ? "Supprimer" : "Delete"}</button>}
+        </div>
+      </div>)}
+      <form className="community-comment-form" onSubmit={submitComment}>
+        <textarea value={content} onChange={(event) => setContent(event.target.value)} maxLength={500} placeholder={fr ? "Écrire un commentaire…" : "Write a comment…"} />
+        <div><small>{content.length}/500</small><button className="account-submit" type="submit" disabled={busy || !content.trim()}>{busy ? (fr ? "Envoi…" : "Sending…") : (fr ? "Commenter" : "Comment")}</button></div>
+      </form>
+      {error && <small className="community-like-error" role="alert">{error}</small>}
+    </div>}
+  </div>;
+}
+
 function CommunityPage({ language }: { language: Language }) {
   const [posts, setPosts] = useState<FutPulsePost[]>([]);
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -427,6 +491,7 @@ function CommunityPage({ language }: { language: Language }) {
         {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}
         <p>{post.content}</p>
         <PostReactions post={post} language={language} />
+        <PostComments post={post} language={language} />
       </article>)}
     </div>
   </section>;
@@ -616,7 +681,7 @@ function MyPosts({ language }: { language: Language }) {
       ? <p className="community-status">{fr ? "Tu n'as pas encore publié." : "You have not posted yet."}</p>
       : posts.map((post) => <article className="community-post" key={post.id}>
         <div className="community-post-head"><div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0,2).toUpperCase()}</div><div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div><span className="community-category">{post.category === "analysis" ? (fr ? "Analyse" : "Analysis") : post.category === "news" ? (fr ? "Actualité" : "News") : "Opinion"}</span></div>
-        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}<p>{post.content}</p><PostReactions post={post} language={language} />
+        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}<p>{post.content}</p><PostReactions post={post} language={language} /><PostComments post={post} language={language} />
       </article>)}
   </section>;
 }
