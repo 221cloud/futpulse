@@ -124,23 +124,16 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return reply({ error: "invalid_email" }, 400, origin);
     if (displayName.length < 2 || displayName.length > 70) return reply({ error: "invalid_display_name" }, 400, origin);
     if (password.length < 10 || password.length > 128) return reply({ error: "password_must_be_10_to_128_characters" }, 400, origin);
-    if (!env.RESEND_API_KEY || !env.RESEND_FROM || !env.APP_ORIGIN || !env.API_ORIGIN) return reply({ error: "email_service_not_configured" }, 503, origin);
     const existing = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
     if (existing) return reply({ error: "account_already_exists" }, 409, origin);
     const id = crypto.randomUUID();
     const salt = randomToken(16);
     const passwordHash = await hashPassword(password, salt);
-    const token = randomToken();
-    const tokenHash = await digest(token);
     await db.prepare("INSERT INTO users (id,email,display_name,password_hash,password_salt,created_at,updated_at) VALUES (?,?,?,?,?,?,?)").bind(id,email,displayName,passwordHash,salt,now,now).run();
-    await db.prepare("INSERT INTO email_verification_tokens (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),id,tokenHash,now+86400,now).run();
-    const link = `${env.API_ORIGIN.replace(/\/$/, "")}/api/v1/auth/verify?token=${encodeURIComponent(token)}`;
-    const sent = await sendEmail(env,email,"Confirme ton adresse e-mail - FutPulse",emailHtml("Bienvenue sur FutPulse", "Confirme ton adresse e-mail pour activer ton compte. Ce lien expire dans 24 heures.",link));
-    if (!sent) {
-      await db.prepare("DELETE FROM users WHERE id = ?").bind(id).run();
-      return reply({ error: "verification_email_not_sent" }, 502, origin);
-    }
-    return reply({ status: "verification_email_sent" }, 201, origin);
+    const sessionToken = randomToken();
+    const sessionExpires = now + 60 * 60 * 24 * 30;
+    await db.prepare("INSERT INTO sessions (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),id,await digest(sessionToken),sessionExpires,now).run();
+    return reply({ user: { id, email, displayName, emailVerified: false } }, 201, origin, cookie(sessionToken,60*60*24*30));
   }
 
   if (route === "login") {
@@ -151,11 +144,10 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!user || !constantTimeEqual(candidateHash, user.password_hash)) {
       return reply({ error: "invalid_credentials" }, 401, origin);
     }
-    if (!user.email_verified_at) return reply({ error: "email_not_verified" }, 403, origin);
     const token = randomToken();
     const expires = now + 60 * 60 * 24 * 30;
     await db.prepare("INSERT INTO sessions (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),user.id,await digest(token),expires,now).run();
-    return reply({ user: { id: user.id, email: user.email, displayName: user.display_name, emailVerified: true } }, 200, origin, cookie(token,60*60*24*30));
+    return reply({ user: { id: user.id, email: user.email, displayName: user.display_name, emailVerified: Boolean(user.email_verified_at) } }, 200, origin, cookie(token,60*60*24*30));
   }
 
   if (route === "logout") {
@@ -166,8 +158,9 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
 
   if (route === "forgot-password") {
     const email = normalizedEmail(body.email);
+    if (!env.RESEND_API_KEY || !env.RESEND_FROM || !env.APP_ORIGIN) return reply({ error: "password_reset_email_unavailable" }, 503, origin);
     const user = await db.prepare("SELECT id FROM users WHERE email = ?").bind(email).first<{ id: string }>();
-    if (user && env.RESEND_API_KEY && env.RESEND_FROM && env.APP_ORIGIN) {
+    if (user) {
       const token = randomToken();
       await db.prepare("DELETE FROM password_reset_tokens WHERE user_id = ?").bind(user.id).run();
       await db.prepare("INSERT INTO password_reset_tokens (id,user_id,token_hash,expires_at,created_at) VALUES (?,?,?,?,?)").bind(crypto.randomUUID(),user.id,await digest(token),now+3600,now).run();
