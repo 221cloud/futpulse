@@ -86,6 +86,19 @@ export interface FutPulsePost {
   likeCount: number;
   likedByMe: boolean;
 }
+export interface FutPulseCommunityMember {
+  id: string;
+  displayName: string;
+  avatarData: string | null;
+  bio: string;
+  followerCount: number;
+  postCount: number;
+  isFollowing: boolean;
+}
+export async function getCommunityMembers(): Promise<FutPulseCommunityMember[]> {
+  const result = await request<{ members: FutPulseCommunityMember[] }>("community/members");
+  return result.members ?? [];
+}
 export async function getCommunityFeed(): Promise<FutPulsePost[]> {
   const result = await request<{ posts: FutPulsePost[] }>("posts/feed");
   return result.posts;
