@@ -99,6 +99,10 @@ export async function getCommunityMembers(): Promise<FutPulseCommunityMember[]> 
   const result = await request<{ members: FutPulseCommunityMember[] }>("community/members");
   return result.members ?? [];
 }
+export async function getPublicCommunityPosts(): Promise<FutPulsePost[]> {
+  const result = await request<{ posts: FutPulsePost[] }>("posts/community");
+  return result.posts ?? [];
+}
 export async function getCommunityFeed(): Promise<FutPulsePost[]> {
   const result = await request<{ posts: FutPulsePost[] }>("posts/feed");
   return result.posts;
