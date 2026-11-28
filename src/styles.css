@@ -442,3 +442,22 @@
 .profile-edit-actions{display:flex;flex-wrap:wrap;gap:9px}
 .account-secondary{min-height:40px;padding:10px 14px;border:1px solid #344553;border-radius:6px;background:transparent;color:#c4d0d9;font-size:11px;font-weight:700;cursor:pointer}
 .account-secondary:disabled{opacity:.6;cursor:wait}
+
+
+/* Public FutPulse profiles */
+.profile-bio-input{min-height:96px;resize:vertical;line-height:1.5}
+.profile-public-toggle{display:flex;align-items:flex-start;gap:11px;padding:13px;border:1px solid #2a3946;border-radius:7px;background:#111e29;color:#dce7ee;cursor:pointer}
+.profile-public-toggle input{width:17px;height:17px;margin:2px 0 0;accent-color:#39e58c}
+.profile-public-toggle span{display:grid;gap:5px}
+.profile-public-toggle strong{font-size:11px}
+.profile-public-toggle small{color:#8293a2;font-size:10px;line-height:1.5;font-weight:400}
+.public-profile-share{display:grid;gap:9px;padding:13px;border:1px solid rgba(57,229,140,.2);border-radius:7px;background:rgba(57,229,140,.045)}
+.public-profile-share p{margin:0;color:#9eafbd;font-size:10px}
+.public-profile-share code{display:block;overflow-wrap:anywhere;color:#8df0b7;font-size:10px}
+.public-profile-page{max-width:620px;margin:0 auto;padding:70px 24px;text-align:center}
+.public-profile-page>.profile-avatar{margin:0 auto 20px;width:104px;height:104px;font-size:30px}
+.public-profile-page>h1{margin:10px 0;color:#f2f7fa;font-family:'Space Grotesk';font-size:clamp(28px,5vw,44px)}
+.public-profile-bio{max-width:480px;margin:12px auto;color:#c1cdd7;font-size:14px;line-height:1.8;overflow-wrap:anywhere}
+.public-profile-joined{color:#8293a2;font-size:10px}
+.public-profile-home{display:inline-block;margin-top:24px}
+.public-profile-shell{min-height:100vh}
