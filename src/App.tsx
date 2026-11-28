@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -750,8 +750,96 @@ function ProfileAccount({ language }: { language: Language }) {
       {(mode === "forgot" || mode === "reset") && <button className="account-link" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{fr ? "Retour à la connexion" : "Back to sign in"}</button>}
     </>}
     {user && <StatsDashboard language={language} />}
+    {user && <AdminDashboard language={language} />}
     {user && <MyPosts language={language} />}
     <div className="account-notice">{fr ? "Tes informations sont protégées. Ton mot de passe n'est jamais stocké en clair." : "Your information is protected. Your password is never stored in plain text."}</div>
+  </section>;
+}
+
+function AdminDashboard({ language }: { language: Language }) {
+  const [status, setStatus] = useState<{ isAdmin: boolean; bootstrapAvailable: boolean } | null>(null);
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof getAdminStats>> | null>(null);
+  const [token, setToken] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const fr = language === "FR";
+
+  const refresh = async () => {
+    const next = await getAdminStatus();
+    setStatus(next);
+    if (next.isAdmin) setStats(await getAdminStats());
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getAdminStatus()]).then(async ([next]) => {
+      if (cancelled) return;
+      setStatus(next);
+      if (next.isAdmin) {
+        const result = await getAdminStats();
+        if (!cancelled) setStats(result);
+      }
+    }).catch(() => {
+      if (!cancelled) setError(fr ? "Espace administration indisponible." : "Admin area unavailable.");
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const activate = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setBusy(true); setError(""); setMessage("");
+    try {
+      await bootstrapAdmin(token);
+      setToken("");
+      await refresh();
+      setMessage(fr ? "Ton compte est maintenant administrateur." : "Your account is now an administrator.");
+    } catch (err) {
+      const code = err instanceof Error ? err.message : "admin_activation_failed";
+      setError(code === "invalid_bootstrap_token"
+        ? (fr ? "Code d'activation incorrect." : "Incorrect activation code.")
+        : code === "admin_already_configured"
+          ? (fr ? "Un administrateur est déjà configuré." : "An administrator is already configured.")
+          : (fr ? "Activation impossible. Réessaie." : "Activation failed. Please try again."));
+    } finally { setBusy(false); }
+  };
+
+  if (loading || !status || (!status.isAdmin && !status.bootstrapAvailable && !error)) return null;
+
+  return <section className="admin-dashboard">
+    <div className="section-heading"><div><div className="eyebrow">FUTPULSE CONTROL</div><h2>{fr ? "Administration" : "Administration"}</h2></div></div>
+    {status.isAdmin && stats ? <>
+      <p className="admin-access-label">{fr ? "Accès administrateur actif" : "Administrator access active"}</p>
+      <div className="stats-grid">
+        {[
+          { label: fr ? "Utilisateurs" : "Users", value: stats.users },
+          { label: fr ? "Profils publics" : "Public profiles", value: stats.publicProfiles },
+          { label: fr ? "Publications" : "Posts", value: stats.posts },
+          { label: "J’aime", value: stats.likes },
+          { label: fr ? "Commentaires" : "Comments", value: stats.comments },
+          { label: fr ? "Abonnements" : "Follows", value: stats.follows }
+        ].map((item) => <article className="stats-card" key={item.label}><small>{item.label}</small><strong>{item.value.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></article>)}
+      </div>
+      <div className="stats-period">
+        <div><span>{fr ? "Nouveaux utilisateurs (30 jours)" : "New users (30 days)"}</span><strong>{stats.newUsersLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
+        <div><span>{fr ? "Publications (30 jours)" : "Posts (30 days)"}</span><strong>{stats.postsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
+        <div><span>{fr ? "Interactions (30 jours)" : "Interactions (30 days)"}</span><strong>{stats.interactionsLast30Days.toLocaleString(fr ? "fr-FR" : "en-GB")}</strong></div>
+      </div>
+    </> : status.bootstrapAvailable ? <div className="account-card admin-bootstrap-card">
+      <h3>{fr ? "Activer le premier administrateur" : "Activate the first administrator"}</h3>
+      <p>{fr ? "Cette activation est réservée au propriétaire de FutPulse. Saisis le code temporaire configuré sur le Worker Cloudflare." : "This activation is reserved for the FutPulse owner. Enter the temporary code configured in the Cloudflare Worker."}</p>
+      <form className="admin-bootstrap-form" onSubmit={activate}>
+        <label>{fr ? "Code d’activation" : "Activation code"}
+          <input type="password" autoComplete="off" required minLength={32} value={token} onChange={(event) => setToken(event.target.value)} />
+        </label>
+        <button className="account-submit" type="submit" disabled={busy || token.length < 32}>{busy ? (fr ? "Activation…" : "Activating…") : (fr ? "Activer mon compte administrateur" : "Activate my administrator account")}</button>
+      </form>
+    </div> : null}
+    {error && <p className="account-error" role="alert">{error}</p>}
+    {message && <p className="account-message" role="status">{message}</p>}
   </section>;
 }
 
