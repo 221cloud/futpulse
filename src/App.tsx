@@ -6,11 +6,11 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, createCommunityPost } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory } from "./services/authApi";
 
 type Language = "FR" | "EN";
-type Tab = "home" | "matches" | "news" | "favorites" | "profile";
+type Tab = "home" | "matches" | "news" | "community" | "favorites" | "profile";
 
 type Match = {
   id: number;
@@ -27,7 +27,7 @@ type Match = {
 
 const copy = {
   FR: {
-    home: "Accueil", matches: "Matchs", news: "Actualités", favorites: "Favoris", profile: "Profil",
+    home: "Accueil", matches: "Matchs", news: "Actualités", community: "À la une", favorites: "Favoris", profile: "Profil",
     greeting: "Le football en temps réel.", subtitle: "Toute l’actualité du jeu. Au même endroit.",
     live: "EN DIRECT", today: "À la une", seeAll: "Tout voir", upcoming: "À venir",
     latest: "Dernières actualités", competitions: "Compétitions suivies", demo: "Version de démonstration",
@@ -39,7 +39,7 @@ const copy = {
     newsLoading: "Chargement des actualités…", newsError: "Les actualités sont momentanément indisponibles.", newsEmpty: "Aucun article publié pour le moment.", newsSource: "Source"
   },
   EN: {
-    home: "Home", matches: "Matches", news: "News", favorites: "Favorites", profile: "Profile",
+    home: "Home", matches: "Matches", news: "News", community: "Community", favorites: "Favorites", profile: "Profile",
     greeting: "Football, in real time.", subtitle: "Everything happening in the game. All in one place.",
     live: "LIVE", today: "Featured", seeAll: "See all", upcoming: "Upcoming",
     latest: "Latest news", competitions: "Followed competitions", demo: "Demo version",
@@ -56,6 +56,7 @@ const navItems: { id: Tab; icon: string }[] = [
   { id: "home", icon: "⌂" },
   { id: "matches", icon: "◷" },
   { id: "news", icon: "▤" },
+  { id: "community", icon: "✦" },
   { id: "favorites", icon: "☆" },
   { id: "profile", icon: "◉" }
 ];
@@ -178,7 +179,7 @@ function App() {
     setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
   };
 
-  const title = tab === "home" ? t.home : tab === "matches" ? t.matches : tab === "news" ? t.news : tab === "favorites" ? t.favorites : t.profile;
+  const title = tab === "home" ? t.home : tab === "matches" ? t.matches : tab === "news" ? t.news : tab === "community" ? t.community : tab === "favorites" ? t.favorites : t.profile;
 
   return (
     <div className="app-shell">
@@ -269,6 +270,8 @@ function App() {
 
           {tab === "news" && <section className="page-section"><div className="page-heading"><div className="eyebrow">THE TOUCHLINE</div><h1>{t.latest}</h1><p>{t.newsBody}</p></div><NewsSection language={language} articles={newsArticles} status={newsStatus} expanded onArticleOpen={setSelectedArticle} /></section>}
 
+          {tab === "community" && <CommunityPage language={language} />}
+          
           {tab === "favorites" && (
             <section className="page-section"><div className="page-heading"><div className="eyebrow">YOUR GAME</div><h1>{t.favorites}</h1><p>{t.favoriteHint}</p></div>
               {favorites.length ? <div className="favorite-chips">{favorites.map((name) => <button key={name} className="favorite-chip" onClick={() => toggleFavorite(name)}>{name}<span>×</span></button>)}</div> : <div className="empty-state">{t.empty}</div>}
@@ -306,6 +309,92 @@ function MatchCard({ match, favorite, onFavorite, onOpen }: { match: Match; favo
   );
 }
 
+
+
+function CommunityPage({ language }: { language: Language }) {
+  const [posts, setPosts] = useState<FutPulsePost[]>([]);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState<FutPulsePostCategory>("opinion");
+  const [matchLabel, setMatchLabel] = useState("");
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const fr = language === "FR";
+
+  const refresh = async () => {
+    try {
+      const current = await getCurrentUser();
+      setSignedIn(Boolean(current));
+      if (!current) { setPosts([]); setStatus("ready"); return; }
+      const result = await getCommunityFeed();
+      setPosts(result);
+      setStatus("ready");
+    } catch {
+      setStatus("error");
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  const publish = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!content.trim() || busy) return;
+    setBusy(true);
+    setMessage("");
+    try {
+      const post = await createCommunityPost(content, category, matchLabel);
+      setPosts((current) => [post, ...current.filter((item) => item.id !== post.id)]);
+      setContent("");
+      setMatchLabel("");
+      setMessage(fr ? "Publication partagée." : "Post published.");
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "";
+      setMessage(code === "not_authenticated"
+        ? (fr ? "Connecte-toi pour publier." : "Sign in to publish.")
+        : (fr ? "La publication n'a pas pu être envoyée. Réessaie." : "Could not publish. Please try again."));
+    } finally { setBusy(false); }
+  };
+
+  const categoryName = (value: FutPulsePostCategory) => value === "opinion"
+    ? (fr ? "Opinion" : "Opinion")
+    : value === "analysis" ? (fr ? "Analyse" : "Analysis") : (fr ? "Actualité" : "News");
+
+  return <section className="page-section community-page">
+    <div className="page-heading"><div className="eyebrow">FUTPULSE COMMUNITY</div><h1>{fr ? "À la une" : "Community"}</h1><p>{fr ? "Les idées et les analyses des supporters de football." : "Ideas and analysis from football fans."}</p></div>
+    {signedIn === false && <div className="empty-state">{fr ? "Connecte-toi depuis ton Profil pour publier et suivre les publications de la communauté." : "Sign in from your Profile to publish and follow community posts."}</div>}
+    {signedIn && <form className="community-composer" onSubmit={publish}>
+      <label>{fr ? "Ta publication" : "Your post"}
+        <textarea value={content} onChange={(event) => setContent(event.target.value)} maxLength={500} rows={4} placeholder={fr ? "Que penses-tu de l'actualité du football ?" : "What do you think about football today?"} required />
+      </label>
+      <div className="community-composer-meta">
+        <select value={category} onChange={(event) => setCategory(event.target.value as FutPulsePostCategory)} aria-label={fr ? "Catégorie" : "Category"}>
+          <option value="opinion">{fr ? "Opinion" : "Opinion"}</option>
+          <option value="analysis">{fr ? "Analyse" : "Analysis"}</option>
+          <option value="news">{fr ? "Actualité" : "News"}</option>
+        </select>
+        <input value={matchLabel} onChange={(event) => setMatchLabel(event.target.value)} maxLength={100} placeholder={fr ? "Match associé (facultatif)" : "Related match (optional)"} />
+        <span>{content.length}/500</span>
+        <button className="account-submit" type="submit" disabled={busy || !content.trim()}>{busy ? (fr ? "Publication…" : "Publishing…") : (fr ? "Publier" : "Publish")}</button>
+      </div>
+      {message && <p className="account-message" role="status">{message}</p>}
+    </form>}
+    {status === "loading" && <p className="community-status">{fr ? "Chargement du fil…" : "Loading feed…"}</p>}
+    {status === "error" && <div className="empty-state">{fr ? "Le fil d'actualité est momentanément indisponible." : "The feed is temporarily unavailable."}<button className="account-secondary" onClick={() => { setStatus("loading"); void refresh(); }}>{fr ? "Réessayer" : "Retry"}</button></div>}
+    {status === "ready" && signedIn && posts.length === 0 && <div className="empty-state">{fr ? "Aucune publication pour le moment. Tu peux être le premier à partager une analyse !" : "No posts yet. Be the first to share your analysis!"}</div>}
+    <div className="community-post-list">
+      {posts.map((post) => <article className="community-post" key={post.id}>
+        <div className="community-post-head">
+          <div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0, 2).toUpperCase()}</div>
+          <div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div>
+          <span className="community-category">{categoryName(post.category)}</span>
+        </div>
+        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}
+        <p>{post.content}</p>
+      </article>)}
+    </div>
+  </section>;
+}
 
 function ProfileAccount({ language }: { language: Language }) {
   const [user, setUser] = useState<FutPulseUser | null>(null);
