@@ -259,9 +259,12 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     if (!/^[0-9a-f-]{36}$/i.test(userId)) return reply({ error: "profile_not_found" }, 404, origin);
     const profile = await db.prepare("SELECT id, display_name, avatar_data, bio, created_at FROM users WHERE id = ? AND profile_public = 1").bind(userId).first<{ id: string; display_name: string; avatar_data: string | null; bio: string | null; created_at: number }>();
     if (!profile) return reply({ error: "profile_not_found" }, 404, origin);
-    const [followers, following, viewer] = await Promise.all([
+    const [followers, following, posts, likes, comments, viewer] = await Promise.all([
       db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE followed_id = ?").bind(userId).first<{ count: number }>(),
       db.prepare("SELECT COUNT(*) AS count FROM user_follows WHERE follower_id = ?").bind(userId).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_posts WHERE author_id = ?").bind(userId).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_likes l JOIN community_posts p ON p.id = l.post_id WHERE p.author_id = ?").bind(userId).first<{ count: number }>(),
+      db.prepare("SELECT COUNT(*) AS count FROM community_post_comments c JOIN community_posts p ON p.id = c.post_id WHERE p.author_id = ?").bind(userId).first<{ count: number }>(),
       currentUser(request, db)
     ]);
     let isFollowing = false;
@@ -269,7 +272,9 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
       const relation = await db.prepare("SELECT follower_id FROM user_follows WHERE follower_id = ? AND followed_id = ?").bind(viewer.id, userId).first<{ follower_id: string }>();
       isFollowing = Boolean(relation);
     }
-    return reply({ profile: { id: profile.id, displayName: profile.display_name, avatarData: profile.avatar_data ?? null, bio: profile.bio ?? "", createdAt: profile.created_at, followerCount: followers?.count ?? 0, followingCount: following?.count ?? 0, isFollowing } }, 200, origin);
+    const likesReceived = likes?.count ?? 0;
+    const commentsReceived = comments?.count ?? 0;
+    return reply({ profile: { id: profile.id, displayName: profile.display_name, avatarData: profile.avatar_data ?? null, bio: profile.bio ?? "", createdAt: profile.created_at, followerCount: followers?.count ?? 0, followingCount: following?.count ?? 0, postCount: posts?.count ?? 0, likesReceived, commentsReceived, interactionsReceived: likesReceived + commentsReceived, isFollowing } }, 200, origin);
   }
   if (request.method !== "POST") return reply({ error: "method_not_allowed" }, 405, origin);
   const body = await readBody(request);
