@@ -6,7 +6,7 @@ import type { MatchDetailsData } from "./services/footballDetailsApi";
 import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
-import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, createCommunityPost } from "./services/authApi";
+import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost } from "./services/authApi";
 import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory } from "./services/authApi";
 
 type Language = "FR" | "EN";
@@ -562,9 +562,29 @@ function ProfileAccount({ language }: { language: Language }) {
       {mode === "login" && <button className="account-link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }}>{fr ? "Mot de passe oublié ?" : "Forgot password?"}</button>}
       {(mode === "forgot" || mode === "reset") && <button className="account-link" onClick={() => { setMode("login"); setError(""); setMessage(""); }}>{fr ? "Retour à la connexion" : "Back to sign in"}</button>}
     </>}
+    {user && <MyPosts language={language} />}
     <div className="account-notice">{fr ? "Tes informations sont protégées. Ton mot de passe n'est jamais stocké en clair." : "Your information is protected. Your password is never stored in plain text."}</div>
   </section>;
 }
+
+function MyPosts({ language }: { language: Language }) {
+  const [posts, setPosts] = useState<FutPulsePost[]>([]);
+  const [loading, setLoading] = useState(true);
+  const fr = language === "FR";
+  useEffect(() => {
+    getMyPosts().then(setPosts).catch(() => setPosts([])).finally(() => setLoading(false));
+  }, []);
+  return <section className="my-posts-section">
+    <div className="section-heading"><div><div className="eyebrow">YOUR VOICE</div><h2>{fr ? "Mes publications" : "My posts"}</h2></div></div>
+    {loading ? <p className="community-status">{fr ? "Chargement…" : "Loading…"}</p> : posts.length === 0
+      ? <p className="community-status">{fr ? "Tu n'as pas encore publié." : "You have not posted yet."}</p>
+      : posts.map((post) => <article className="community-post" key={post.id}>
+        <div className="community-post-head"><div className="community-post-avatar">{post.authorAvatar ? <img src={post.authorAvatar} alt="" /> : post.authorName.slice(0,2).toUpperCase()}</div><div><strong>{post.authorName}</strong><small>{new Date(post.createdAt * 1000).toLocaleString(fr ? "fr-FR" : "en-GB", { dateStyle: "medium", timeStyle: "short" })}</small></div><span className="community-category">{post.category === "analysis" ? (fr ? "Analyse" : "Analysis") : post.category === "news" ? (fr ? "Actualité" : "News") : "Opinion"}</span></div>
+        {post.matchLabel && <div className="community-match-label">⚽ {post.matchLabel}</div>}<p>{post.content}</p>
+      </article>)}
+  </section>;
+}
+
 function PublicProfilePage({ userId, language }: { userId: string; language: Language }) {
   const [profile, setProfile] = useState<FutPulsePublicProfile | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
