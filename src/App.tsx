@@ -7,7 +7,8 @@ import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
 import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile } from "./services/authApi";
-import type { FutPulseUser } from "./services/authApi";
+import { getPublicProfile } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "favorites" | "profile";
@@ -171,6 +172,8 @@ function App() {
   }, [query, matches, statusFilter, competitionFilter]);
 
   const competitions = useMemo(() => [...new Set(matches.map((match) => match.competition))].sort(), [matches]);
+  const publicProfileMatch = window.location.pathname.match(/^\/profile\/([0-9a-f-]{36})\/?$/i);
+  if (publicProfileMatch) return <PublicProfilePage userId={publicProfileMatch[1]} language={language} />;
 
   const toggleFavorite = (name: string) => {
     setFavorites((current) => current.includes(name) ? current.filter((item) => item !== name) : [...current, name]);
@@ -318,13 +321,15 @@ function ProfileAccount({ language }: { language: Language }) {
   const [editing, setEditing] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [avatarData, setAvatarData] = useState<string | null>(null);
+  const [profileBio, setProfileBio] = useState("");
+  const [profilePublic, setProfilePublic] = useState(false);
 
   useEffect(() => {
     const token = new URLSearchParams(window.location.search).get("resetToken");
     if (token) { setResetToken(token); setMode("reset"); }
     getCurrentUser().then((current) => {
       setUser(current);
-      if (current) { setProfileName(current.displayName); setAvatarData(current.avatarData ?? null); }
+      if (current) { setProfileName(current.displayName); setAvatarData(current.avatarData ?? null); setProfileBio(current.bio ?? ""); setProfilePublic(current.profilePublic ?? false); }
     }).catch(() => setUser(null));
   }, []);
 
@@ -334,11 +339,11 @@ function ProfileAccount({ language }: { language: Language }) {
     try {
       if (mode === "register") {
         const created = await registerAccount(displayName, email, password);
-        setUser(created); setProfileName(created.displayName); setAvatarData(created.avatarData ?? null);
+        setUser(created); setProfileName(created.displayName); setAvatarData(created.avatarData ?? null); setProfileBio(created.bio ?? ""); setProfilePublic(created.profilePublic ?? false);
         setPassword("");
       } else if (mode === "login") {
         const signedIn = await loginAccount(email, password);
-        setUser(signedIn); setProfileName(signedIn.displayName); setAvatarData(signedIn.avatarData ?? null);
+        setUser(signedIn); setProfileName(signedIn.displayName); setAvatarData(signedIn.avatarData ?? null); setProfileBio(signedIn.bio ?? ""); setProfilePublic(signedIn.profilePublic ?? false);
         setPassword("");
       } else if (mode === "forgot") {
         await requestPasswordReset(email);
@@ -366,8 +371,8 @@ function ProfileAccount({ language }: { language: Language }) {
   const saveProfile = async () => {
     setBusy(true); setError(""); setMessage("");
     try {
-      const updated = await updateAccountProfile(profileName, avatarData ?? "");
-      setUser(updated); setProfileName(updated.displayName); setAvatarData(updated.avatarData ?? null);
+      const updated = await updateAccountProfile(profileName, avatarData ?? "", profileBio, profilePublic);
+      setUser(updated); setProfileName(updated.displayName); setAvatarData(updated.avatarData ?? null); setProfileBio(updated.bio ?? ""); setProfilePublic(updated.profilePublic ?? false);
       setEditing(false);
       setMessage(fr ? "Ton profil a été mis à jour." : "Your profile has been updated.");
     } catch (err) {
@@ -428,13 +433,22 @@ function ProfileAccount({ language }: { language: Language }) {
         <label className="profile-edit-label">{fr ? "Photo de profil" : "Profile photo"}
           <input className="profile-file-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => chooseAvatar(event.target.files?.[0])} />
         </label>
+        <label className="profile-edit-label">{fr ? "Biographie (280 caractères maximum)" : "Bio (280 characters maximum)"}
+          <textarea className="profile-edit-input profile-bio-input" value={profileBio} maxLength={280} rows={4} onChange={(event) => setProfileBio(event.target.value)} placeholder={fr ? "Présente-toi aux autres supporters…" : "Introduce yourself to other fans…"} />
+        </label>
+        <label className="profile-public-toggle">
+          <input type="checkbox" checked={profilePublic} onChange={(event) => setProfilePublic(event.target.checked)} />
+          <span><strong>{fr ? "Rendre mon profil public" : "Make my profile public"}</strong><small>{fr ? "Ton nom, ta photo et ta biographie seront visibles par toute personne disposant du lien." : "Your name, photo and bio will be visible to anyone with the link."}</small></span>
+        </label>
         <p className="account-hint">{fr ? "JPEG, PNG ou WebP. La photo sera redimensionnée automatiquement (maximum 150 Ko)." : "JPEG, PNG or WebP. The photo will be resized automatically (150 KB maximum)."}</p>
         <div className="profile-edit-actions">
           <button className="account-submit" onClick={saveProfile} disabled={busy || profileName.trim().length < 2}>{busy ? (fr ? "Enregistrement…" : "Saving…") : (fr ? "Enregistrer" : "Save changes")}</button>
-          <button className="account-secondary" onClick={() => { setEditing(false); setProfileName(user.displayName); setAvatarData(user.avatarData ?? null); setError(""); }}> {fr ? "Annuler" : "Cancel"} </button>
+          <button className="account-secondary" onClick={() => { setEditing(false); setProfileName(user.displayName); setAvatarData(user.avatarData ?? null); setProfileBio(user.bio ?? ""); setProfilePublic(user.profilePublic ?? false); setError(""); }}> {fr ? "Annuler" : "Cancel"} </button>
         </div>
       </> : <>
         <h2>{user.displayName}</h2><p>{user.email}</p>
+        <span className={user.profilePublic ? "account-verified" : "account-unverified"}>{user.profilePublic ? (fr ? "Profil public" : "Public profile") : (fr ? "Profil privé" : "Private profile")}</span>
+        {user.profilePublic && <div className="public-profile-share"><p>{fr ? "Ton profil peut être partagé avec ce lien :" : "Your profile can be shared with this link:"}</p><code>{window.location.origin}/profile/{user.id}</code><button className="account-secondary" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/profile/${user.id}`).then(() => setMessage(fr ? "Lien copié." : "Link copied.")).catch(() => setError(fr ? "Copie impossible sur cet appareil." : "Could not copy on this device."))}>{fr ? "Copier le lien public" : "Copy public link"}</button></div>}
         <span className={user.emailVerified ? "account-verified" : "account-unverified"}>{user.emailVerified ? (fr ? "E-mail vérifié" : "Email verified") : (fr ? "E-mail non vérifié" : "Email not verified")}</span>
         {!user.emailVerified && <p className="account-hint">{fr ? "Ton compte est actif. La vérification de l'adresse et la récupération du mot de passe par e-mail seront activées dès que FutPulse disposera d'un domaine vérifié. Utilise une adresse e-mail valide." : "Your account is active. Email verification and password recovery will be enabled once FutPulse has a verified domain. Use a valid email address."}</p>}
         <button className="account-submit" onClick={() => { setEditing(true); setProfileName(user.displayName); setAvatarData(user.avatarData ?? null); setError(""); setMessage(""); }}>{fr ? "Modifier mon profil" : "Edit my profile"}</button>
@@ -463,6 +477,39 @@ function ProfileAccount({ language }: { language: Language }) {
     <div className="account-notice">{fr ? "Tes informations sont protégées. Ton mot de passe n'est jamais stocké en clair." : "Your information is protected. Your password is never stored in plain text."}</div>
   </section>;
 }
+function PublicProfilePage({ userId, language }: { userId: string; language: Language }) {
+  const [profile, setProfile] = useState<FutPulsePublicProfile | null>(null);
+  const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
+  const fr = language === "FR";
+  useEffect(() => {
+    let cancelled = false;
+    getPublicProfile(userId).then((result) => {
+      if (cancelled) return;
+      setProfile(result);
+      setStatus("ready");
+    }).catch(() => {
+      if (!cancelled) setStatus("error");
+    });
+    return () => { cancelled = true; };
+  }, [userId]);
+  const joined = profile?.createdAt ? new Date(profile.createdAt * 1000).toLocaleDateString(fr ? "fr-FR" : "en-GB", { month: "long", year: "numeric" }) : "";
+  return <main className="app-shell public-profile-shell">
+    <header className="topbar"><a className="brand" href="/"><span className="brand-mark">FP</span><span className="brand-title">FUT<span className="brand-light">PULSE</span></span></a></header>
+    <section className="page-section account-page public-profile-page">
+      {status === "loading" && <p>{fr ? "Chargement du profil…" : "Loading profile…"}</p>}
+      {status === "error" && <><h1>{fr ? "Profil introuvable" : "Profile not found"}</h1><p>{fr ? "Ce profil n'existe pas ou son propriétaire ne l'a pas rendu public." : "This profile does not exist or its owner has not made it public."}</p></>}
+      {profile && <>
+        <div className="profile-avatar">{profile.avatarData ? <img src={profile.avatarData} alt={fr ? "Photo de profil" : "Profile photo"} /> : profile.displayName.slice(0, 2).toUpperCase()}</div>
+        <div className="eyebrow">FUTPULSE COMMUNITY</div>
+        <h1>{profile.displayName}</h1>
+        <p className="public-profile-bio">{profile.bio || (fr ? "Passionné(e) de football." : "Football enthusiast.")}</p>
+        {joined && <p className="public-profile-joined">{fr ? "Membre depuis " : "Member since "}{joined}</p>}
+      </>}
+      <a className="account-link public-profile-home" href="/">{fr ? "← Retour à FutPulse" : "← Back to FutPulse"}</a>
+    </section>
+  </main>;
+}
+
 function MatchDetails({ match, onClose }: { match: Match; onClose: () => void }) {
   const [details, setDetails] = useState<MatchDetailsData | null>(null);
   const [detailsStatus, setDetailsStatus] = useState<"loading" | "ready" | "error">("loading");
