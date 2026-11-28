@@ -99,7 +99,7 @@ function App() {
         const fixtures = usingUpcoming ? (await getFootballFixtures()).data : todayResult.data;
         if (cancelled) return;
         const formatted: Match[] = fixtures.map((fixture: FootballFixture, index) => ({
-          id: Number(fixture.id) || index + 1,
+          id: fixture.source === "manual" ? -(index + 1) : Number(fixture.id) || index + 1,
           competition: fixture.competitionName || ("Compétition " + fixture.competitionId),
           home: fixture.homeTeam.name,
           away: fixture.awayTeam.name,
@@ -1323,7 +1323,7 @@ function MatchDetails({ match, onClose }: { match: Match; onClose: () => void })
       if (!cancelled) setDetailsStatus("error");
     });
     return () => { cancelled = true; };
-  }, [match.id]);
+  }, [match.id, match.source]);
 
   const lineups = details?.lineups ?? [];
   const stats = details?.statistics ?? [];
