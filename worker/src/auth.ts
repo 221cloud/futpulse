@@ -206,6 +206,22 @@ export async function handleAuth(request: Request, env: AuthEnv, origin?: string
     const result = await db.prepare("SELECT c.id, c.post_id AS postId, c.user_id AS userId, c.content, c.created_at AS createdAt, u.display_name AS authorName, u.avatar_data AS authorAvatar FROM community_post_comments c JOIN users u ON u.id = c.user_id WHERE c.post_id = ? ORDER BY c.created_at ASC LIMIT 100").bind(postId).all<{ id: string; postId: string; userId: string; content: string; createdAt: number; authorName: string; authorAvatar: string | null }>();
     return reply({ comments: result.results ?? [] }, 200, origin);
   }
+  if (request.method === "GET" && route === "posts/community") {
+    const viewer = await currentUser(request, db);
+    if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
+    const result = await db.prepare(
+      "SELECT p.id, p.author_id AS authorId, p.content, p.category, p.match_label AS matchLabel, p.created_at AS createdAt, " +
+      "u.display_name AS authorName, u.avatar_data AS authorAvatar, " +
+      "(SELECT COUNT(*) FROM community_post_likes l WHERE l.post_id = p.id) AS likeCount, " +
+      "EXISTS (SELECT 1 FROM community_post_likes l WHERE l.post_id = p.id AND l.user_id = ?) AS likedByMe " +
+      "FROM community_posts p JOIN users u ON u.id = p.author_id " +
+      "WHERE u.profile_public = 1 ORDER BY p.created_at DESC LIMIT 100"
+    ).bind(viewer.id).all<{
+      id: string; authorId: string; content: string; category: string; matchLabel: string | null;
+      createdAt: number; authorName: string; authorAvatar: string | null; likeCount: number; likedByMe: number;
+    }>();
+    return reply({ posts: result.results ?? [] }, 200, origin);
+  }
   if (request.method === "GET" && route === "community/members") {
     const viewer = await currentUser(request, db);
     if (!viewer) return reply({ error: "not_authenticated" }, 401, origin);
