@@ -10,7 +10,7 @@ export interface FutPulseUser {
   createdAt?: number;
 }
 const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
-async function request<T>(path: string, body?: Record<string, string | boolean>): Promise<T> {
+async function request<T>(path: string, body?: Record<string, string | boolean | number>): Promise<T> {
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/${path}`, {
     method: body ? "POST" : "GET",
     credentials: "include",
@@ -264,6 +264,38 @@ export async function updateAdminManualFixture(input: {
   fixtureId: string; status: ManualFixtureStatus; homeScore: string; awayScore: string;
 }): Promise<void> {
   await request("admin/manual-fixtures/update", input);
+}
+
+export type ManualFixtureEventType = "goal" | "own_goal" | "penalty_scored" | "penalty_missed" | "yellow_card" | "red_card" | "substitution" | "var";
+export interface FutPulseManualFixtureEvent {
+  id: string;
+  fixtureId: string;
+  teamSide: "home" | "away";
+  eventType: ManualFixtureEventType;
+  minute: number;
+  addedTime: number | null;
+  playerName: string;
+  relatedPlayerName: string | null;
+  detail: string | null;
+  createdAt: number;
+}
+export async function getAdminManualFixtureEvents(fixtureId: string): Promise<FutPulseManualFixtureEvent[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/admin/manual-fixtures/events?fixtureId=${encodeURIComponent(fixtureId)}`, {
+    credentials: "include", headers: { Accept: "application/json" }
+  });
+  const result = await response.json().catch(() => ({})) as { events?: FutPulseManualFixtureEvent[]; error?: string };
+  if (!response.ok) throw new Error(result.error ?? "manual_fixture_events_unavailable");
+  return result.events ?? [];
+}
+export async function createAdminManualFixtureEvent(input: {
+  fixtureId: string; teamSide: "home" | "away"; eventType: ManualFixtureEventType;
+  minute: number; addedTime: number | null; playerName: string; relatedPlayerName: string; detail: string;
+}): Promise<FutPulseManualFixtureEvent> {
+  const result = await request<{ event: FutPulseManualFixtureEvent }>("admin/manual-fixtures/events", input);
+  return result.event;
+}
+export async function deleteAdminManualFixtureEvent(eventId: string): Promise<void> {
+  await request("admin/manual-fixtures/events/delete", { eventId });
 }
 
 export interface FutPulseAdminStats {
