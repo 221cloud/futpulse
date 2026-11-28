@@ -20,8 +20,9 @@ export async function getCurrentUser(): Promise<FutPulseUser | null> {
   const result = await request<{ user: FutPulseUser | null }>("me");
   return result.user;
 }
-export async function registerAccount(displayName: string, email: string, password: string): Promise<void> {
-  await request("register", { displayName, email, password });
+export async function registerAccount(displayName: string, email: string, password: string): Promise<FutPulseUser> {
+  const result = await request<{ user: FutPulseUser }>("register", { displayName, email, password });
+  return result.user;
 }
 export async function loginAccount(email: string, password: string): Promise<FutPulseUser> {
   const result = await request<{ user: FutPulseUser }>("login", { email, password });
