@@ -164,11 +164,10 @@ function App() {
 
   const filteredMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return matches;
     return matches.filter((match) =>
       (statusFilter === "all" || match.status === statusFilter) &&
       (competitionFilter === "all" || match.competition === competitionFilter) &&
-      [match.competition, match.home, match.away].some((value) => value.toLowerCase().includes(q))
+      (!q || [match.competition, match.home, match.away].some((value) => value.toLowerCase().includes(q)))
     );
   }, [query, matches, statusFilter, competitionFilter]);
 
