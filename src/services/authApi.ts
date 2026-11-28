@@ -71,3 +71,37 @@ export async function getPublicProfile(userId: string): Promise<FutPulsePublicPr
   if (!response.ok || !result.profile) throw new Error(result.error ?? "profile_not_found");
   return result.profile;
 }
+
+export type FutPulsePostCategory = "opinion" | "analysis" | "news";
+export interface FutPulsePost {
+  id: string;
+  authorId: string;
+  content: string;
+  category: FutPulsePostCategory;
+  matchLabel: string | null;
+  createdAt: number;
+  authorName: string;
+  authorAvatar: string | null;
+}
+export async function getCommunityFeed(): Promise<FutPulsePost[]> {
+  const result = await request<{ posts: FutPulsePost[] }>("posts/feed");
+  return result.posts;
+}
+export async function getMyPosts(): Promise<FutPulsePost[]> {
+  const result = await request<{ posts: FutPulsePost[] }>("posts/mine");
+  return result.posts;
+}
+export async function getUserPosts(userId: string): Promise<FutPulsePost[]> {
+  const response = await fetch(`${API_BASE_URL}/api/v1/auth/posts/user/${encodeURIComponent(userId)}`, {
+    method: "GET",
+    credentials: "include",
+    headers: { Accept: "application/json" }
+  });
+  const result = await response.json().catch(() => ({})) as { posts?: FutPulsePost[]; error?: string };
+  if (!response.ok) throw new Error(result.error ?? "posts_unavailable");
+  return result.posts ?? [];
+}
+export async function createCommunityPost(content: string, category: FutPulsePostCategory, matchLabel = ""): Promise<FutPulsePost> {
+  const result = await request<{ post: FutPulsePost }>("posts", { content, category, matchLabel });
+  return result.post;
+}
