@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "futpulse-db",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "b1f7970e-d3ba-4b13-b7b9-15199f868438",
       "migrations_dir": "migrations"
     }
   ]
