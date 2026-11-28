@@ -10,7 +10,7 @@ export interface FutPulseUser {
   createdAt?: number;
 }
 const API_BASE_URL = import.meta.env.VITE_FUTPULSE_API_URL?.replace(/\/$/, "") ?? "";
-async function request<T>(path: string, body?: Record<string, string | boolean | number>): Promise<T> {
+async function request<T>(path: string, body?: Record<string, string | boolean | number | null>): Promise<T> {
   const response = await fetch(`${API_BASE_URL}/api/v1/auth/${path}`, {
     method: body ? "POST" : "GET",
     credentials: "include",
