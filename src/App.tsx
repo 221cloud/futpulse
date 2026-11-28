@@ -141,8 +141,8 @@ function App() {
         setNewsArticles(articles);
         setNewsStatus("ready");
       } catch {
-        if (!cancelled && newsArticles.length === 0) {
-          setNewsStatus("error");
+        if (!cancelled) {
+          setNewsStatus((current) => current === "loading" ? "error" : current);
         }
       } finally {
         loading = false;
