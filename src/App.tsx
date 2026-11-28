@@ -7,7 +7,7 @@ import type { FootballFixture } from "./types/football";
 import { getNewsArticles } from "./services/newsApi";
 import type { NewsArticle } from "./services/newsApi";
 import { getCurrentUser, loginAccount, logoutAccount, registerAccount, requestPasswordReset, resetAccountPassword, updateAccountProfile, getPublicProfile, getUserPosts, getCommunityMembers, followUser, unfollowUser, getCommunityFeed, getMyPosts, createCommunityPost, likeCommunityPost, unlikeCommunityPost, getCommunityPostComments, createCommunityComment, deleteCommunityComment, getNotifications, markNotificationRead, markAllNotificationsRead, getMyStats, getAdminStatus, bootstrapAdmin, getAdminStats, reportCommunityPost, getAdminReports, reviewAdminReport } from "./services/authApi";
-import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
+import type { FutPulsePublicProfile, FutPulseUser, FutPulsePost, FutPulseCommunityMember, FutPulsePostCategory, FutPulseComment, FutPulseNotification, FutPulseReportReason, FutPulseModerationReport } from "./services/authApi";
 
 type Language = "FR" | "EN";
 type Tab = "home" | "matches" | "news" | "featured" | "community" | "favorites" | "profile";
@@ -196,7 +196,7 @@ function App() {
             <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t.search} aria-label={t.search} />
             <kbd>⌘ K</kbd>
           </label>
-          <NotificationCenter language={language} onNavigate={() => setTab("community")} />
+          <NotificationCenter language={language} onNavigate={() => setTab("featured")} />
           <button className="language-button" onClick={() => setLanguage(language === "FR" ? "EN" : "FR")} aria-label="Change language">{language} <span>⌄</span></button>
           <button className="avatar-button" onClick={() => setTab("profile")} aria-label={t.profile}>DS</button>
         </div>
