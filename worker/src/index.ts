@@ -2,6 +2,7 @@ import { ApiFootballProviderError, fetchApiFootballFixtures, fetchApiFootballFix
 import { handleAuth, type AuthEnv } from "./auth";
 export interface Env extends AuthEnv { API_FOOTBALL_KEY?: string; }
 const jsonHeaders = { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" };
+const FIXTURE_DETAILS_CACHE_TTL_SECONDS = 10 * 60;
 function json(data: unknown, status = 200, origin?: string): Response {
   const headers = new Headers(jsonHeaders);
   if (origin) {
@@ -51,10 +52,67 @@ export default {
         error: "provider_not_configured",
         message: "La clé API-Football n'est pas configurée côté serveur."
       }, 503, corsOrigin);
+
+      const fixtureId = detailsMatch[1];
+      const now = Math.floor(Date.now() / 1000);
+      let cached: { payload: string; fetched_at: number; expires_at: number } | null = null;
+
+      if (env.DB) {
+        try {
+          cached = await env.DB.prepare(
+            "SELECT payload, fetched_at, expires_at FROM football_fixture_details_cache WHERE fixture_id = ?"
+          ).bind(fixtureId).first<{ payload: string; fetched_at: number; expires_at: number }>();
+          if (cached && cached.expires_at > now) {
+            return json({
+              data: JSON.parse(cached.payload),
+              fetchedAt: new Date(cached.fetched_at * 1000).toISOString(),
+              cached: true,
+              stale: false
+            }, 200, corsOrigin);
+          }
+        } catch (error) {
+          console.warn("Lecture du cache des détails de match impossible :", error);
+          cached = null;
+        }
+      }
+
       try {
-        const details = await fetchApiFootballFixtureDetails(env.API_FOOTBALL_KEY, detailsMatch[1]);
-        return json({ data: details, fetchedAt: new Date().toISOString() }, 200, corsOrigin);
+        const details = await fetchApiFootballFixtureDetails(env.API_FOOTBALL_KEY, fixtureId);
+        const fetchedAt = Math.floor(Date.now() / 1000);
+        if (env.DB) {
+          try {
+            await env.DB.prepare(
+              `INSERT INTO football_fixture_details_cache (fixture_id, payload, fetched_at, expires_at)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(fixture_id) DO UPDATE SET
+                 payload = excluded.payload,
+                 fetched_at = excluded.fetched_at,
+                 expires_at = excluded.expires_at`
+            ).bind(
+              fixtureId,
+              JSON.stringify(details),
+              fetchedAt,
+              fetchedAt + FIXTURE_DETAILS_CACHE_TTL_SECONDS
+            ).run();
+          } catch (error) {
+            console.warn("Enregistrement du cache des détails de match impossible :", error);
+          }
+        }
+        return json({
+          data: details,
+          fetchedAt: new Date(fetchedAt * 1000).toISOString(),
+          cached: false,
+          stale: false
+        }, 200, corsOrigin);
       } catch {
+        if (cached) {
+          return json({
+            data: JSON.parse(cached.payload),
+            fetchedAt: new Date(cached.fetched_at * 1000).toISOString(),
+            cached: true,
+            stale: true
+          }, 200, corsOrigin);
+        }
         return json({ error: "football_details_unavailable", message: "Les détails de cette rencontre sont temporairement indisponibles." }, 502, corsOrigin);
       }
     }
