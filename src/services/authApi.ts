@@ -159,7 +159,7 @@ export interface FutPulseNotification {
 }
 
 export async function getNotifications(): Promise<{ notifications: FutPulseNotification[]; unreadCount: number }> {
-  return request("notifications");
+  return request<{ notifications: FutPulseNotification[]; unreadCount: number }>("notifications");
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {
